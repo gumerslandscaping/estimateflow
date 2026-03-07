@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 
 const TAX_RATE = 0.08;
 
-function generateId() {
+function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -13,15 +13,15 @@ function generateId() {
   });
 }
 
-function formatCurrency(n) {
+function formatCurrency(n: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n || 0);
 }
 
-function formatDate(d) {
+function formatDate(d: string): string {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-const STATUS_META = {
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   draft:    { label: "Draft",    color: "#94a3b8", bg: "#1e293b" },
   sent:     { label: "Sent",     color: "#60a5fa", bg: "#1e3a5f" },
   viewed:   { label: "Viewed",   color: "#a78bfa", bg: "#2d1b69" },
@@ -35,7 +35,7 @@ const defaultEstimate = () => ({
   id: generateId(),
   number: `EST-${String(Math.floor(Math.random() * 9000) + 1000)}`,
   status: "draft",
-  clientId: null,
+  clientId: null as null | number,
   clientName: "",
   clientEmail: "",
   issueDate: new Date().toISOString().split("T")[0],
@@ -46,7 +46,7 @@ const defaultEstimate = () => ({
   createdAt: new Date().toISOString(),
 });
 
-function Badge({ status }: any) {
+function Badge({ status }: { status: string }) {
   const m = STATUS_META[status] || STATUS_META.draft;
   return (
     <span style={{
@@ -59,9 +59,9 @@ function Badge({ status }: any) {
   );
 }
 
-function LineRow({ line, onChange, onRemove, canRemove }: any) {
+function LineRow({ line, onChange, onRemove, canRemove }: { line: any; onChange: (l: any) => void; onRemove: () => void; canRemove: boolean }) {
   const total = (line.qty || 0) * (line.rate || 0);
-  const update = (k, v) => onChange({ ...line, [k]: v });
+  const update = (k: string, v: any) => onChange({ ...line, [k]: v });
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 80px 110px 100px 32px", gap: 8, alignItems: "center", marginBottom: 6 }}>
       <input placeholder="Description…" value={line.description} onChange={e => update("description", e.target.value)} style={iS()} />
@@ -76,7 +76,7 @@ function LineRow({ line, onChange, onRemove, canRemove }: any) {
   );
 }
 
-function iS({ center }: any = {}) {
+function iS({ center }: { center?: boolean } = {}): React.CSSProperties {
   return {
     background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
     color: "#e2e8f0", padding: "8px 10px", fontSize: 13,
@@ -85,8 +85,8 @@ function iS({ center }: any = {}) {
   };
 }
 
-function btn(variant) {
-  const base: any = { border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "inherit" };
+function btn(variant: string): React.CSSProperties {
+  const base: React.CSSProperties = { border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "inherit" } as React.CSSProperties;
   if (variant === "primary")   return { ...base, background: "#6366f1", color: "#fff" };
   if (variant === "secondary") return { ...base, background: "#1e293b", color: "#94a3b8", border: "1px solid #334155" };
   if (variant === "ghost")     return { ...base, background: "transparent", color: "#64748b", border: "1px solid #334155" };
@@ -94,7 +94,7 @@ function btn(variant) {
   return base;
 }
 
-function Section({ title, children }: any) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 12, padding: 20, marginBottom: 16 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>{title}</div>
@@ -103,7 +103,7 @@ function Section({ title, children }: any) {
   );
 }
 
-function LabeledInput({ label, value, onChange, placeholder, type = "text" }: any) {
+function LabeledInput({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
   return (
     <div>
       <label style={{ display: "block", fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</label>
@@ -112,20 +112,20 @@ function LabeledInput({ label, value, onChange, placeholder, type = "text" }: an
   );
 }
 
-function EstimateEditor({ estimate, onSave, onCancel }: any) {
+function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave: (e: any) => void; onCancel: () => void }) {
   const [est, setEst] = useState(estimate);
   const [saving, setSaving] = useState(false);
-  const upd = (k, v) => setEst(p => ({ ...p, [k]: v }));
+  const upd = (k: string, v: any) => setEst((p: any) => ({ ...p, [k]: v }));
 
-  const subtotal = est.lines.reduce((s, l) => s + (l.qty * l.rate || 0), 0);
+  const subtotal = est.lines.reduce((s: number, l: any) => s + (l.qty * l.rate || 0), 0);
   const tax = est.taxEnabled ? subtotal * TAX_RATE : 0;
   const total = subtotal + tax;
 
   const addLine = () => upd("lines", [...est.lines, emptyLine()]);
-  const removeLine = id => upd("lines", est.lines.filter(l => l.id !== id));
-  const updateLine = (id, updated) => upd("lines", est.lines.map(l => l.id === id ? updated : l));
+  const removeLine = (id: string) => upd("lines", est.lines.filter((l: any) => l.id !== id));
+  const updateLine = (id: string, updated: any) => upd("lines", est.lines.map((l: any) => l.id === id ? updated : l));
 
-  const handleSave = async (status) => {
+  const handleSave = async (status: string) => {
     setSaving(true);
     try {
       const { error: estError } = await supabase
@@ -146,7 +146,7 @@ function EstimateEditor({ estimate, onSave, onCancel }: any) {
 
       await supabase.from('estimate_lines').delete().eq('estimate_id', est.id);
 
-      const lines = est.lines.map((l, i) => ({
+      const lines = est.lines.map((l: any, i: number) => ({
         estimate_id: est.id,
         description: l.description,
         qty: l.qty,
@@ -188,15 +188,15 @@ function EstimateEditor({ estimate, onSave, onCancel }: any) {
         <div>
           <Section title="Client">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <LabeledInput label="Client Name" value={est.clientName} onChange={v => upd("clientName", v)} placeholder="Acme Corp" />
-              <LabeledInput label="Client Email" value={est.clientEmail} onChange={v => upd("clientEmail", v)} placeholder="billing@client.com" type="email" />
+              <LabeledInput label="Client Name" value={est.clientName} onChange={(v: string) => upd("clientName", v)} placeholder="Acme Corp" />
+              <LabeledInput label="Client Email" value={est.clientEmail} onChange={(v: string) => upd("clientEmail", v)} placeholder="billing@client.com" type="email" />
             </div>
           </Section>
 
           <Section title="Dates">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <LabeledInput label="Issue Date" value={est.issueDate} onChange={v => upd("issueDate", v)} type="date" />
-              <LabeledInput label="Expiry Date" value={est.expiryDate} onChange={v => upd("expiryDate", v)} type="date" />
+              <LabeledInput label="Issue Date" value={est.issueDate} onChange={(v: string) => upd("issueDate", v)} type="date" />
+              <LabeledInput label="Expiry Date" value={est.expiryDate} onChange={(v: string) => upd("expiryDate", v)} type="date" />
             </div>
           </Section>
 
@@ -206,8 +206,8 @@ function EstimateEditor({ estimate, onSave, onCancel }: any) {
                 <div key={i} style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: i >= 3 ? "center" : "left" }}>{h}</div>
               ))}
             </div>
-            {est.lines.map(l => (
-              <LineRow key={l.id} line={l} onChange={updated => updateLine(l.id, updated)} onRemove={() => removeLine(l.id)} canRemove={est.lines.length > 1} />
+            {est.lines.map((l: any) => (
+              <LineRow key={l.id} line={l} onChange={(updated: any) => updateLine(l.id, updated)} onRemove={() => removeLine(l.id)} canRemove={est.lines.length > 1} />
             ))}
             <button onClick={addLine} style={{ ...btn("ghost"), fontSize: 13, marginTop: 8 }}>+ Add Line Item</button>
           </Section>
@@ -253,9 +253,9 @@ function EstimateEditor({ estimate, onSave, onCancel }: any) {
   );
 }
 
-function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: any) {
+function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: { estimates: any[]; onNew: () => void; onEdit: (e: any) => void; onDelete: (id: string) => void; loading: boolean }) {
   const totalValue = estimates.reduce((s, e) => {
-    const sub = e.lines.reduce((ls, l) => ls + (l.qty * l.rate || 0), 0);
+    const sub = e.lines.reduce((ls: number, l: any) => ls + (l.qty * l.rate || 0), 0);
     return s + (e.taxEnabled ? sub * (1 + TAX_RATE) : sub);
   }, 0);
   const accepted = estimates.filter(e => e.status === "accepted").length;
@@ -313,7 +313,7 @@ function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: any) {
               </thead>
               <tbody>
                 {estimates.map(est => {
-                  const sub = est.lines.reduce((s, l) => s + (l.qty * l.rate || 0), 0);
+                  const sub = est.lines.reduce((s: number, l: any) => s + (l.qty * l.rate || 0), 0);
                   const tot = est.taxEnabled ? sub * (1 + TAX_RATE) : sub;
                   return (
                     <tr key={est.id} onClick={() => onEdit(est)}
@@ -345,8 +345,8 @@ function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: any) {
 }
 
 export default function App() {
-  const [estimates, setEstimates] = useState([]);
-  const [editing, setEditing] = useState(null);
+  const [estimates, setEstimates] = useState<any[]>([]);
+  const [editing, setEditing] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -371,7 +371,7 @@ export default function App() {
         notes: est.notes || "",
         taxEnabled: est.tax_enabled,
         createdAt: est.created_at,
-        lines: (lines || []).map(l => ({
+        lines: (lines || []).map((l: any) => ({
           id: l.id,
           description: l.description,
           qty: l.qty,
@@ -385,7 +385,7 @@ export default function App() {
     setLoading(false);
   };
 
-  const handleSave = (est) => {
+  const handleSave = (est: any) => {
     setEstimates(prev => {
       const exists = prev.find(e => e.id === est.id);
       return exists ? prev.map(e => e.id === est.id ? est : e) : [est, ...prev];
@@ -393,11 +393,11 @@ export default function App() {
     setEditing(null);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     await supabase.from('estimates').delete().eq('id', id);
     setEstimates(prev => prev.filter(e => e.id !== id));
   };
 
   if (editing) return <EstimateEditor estimate={editing} onSave={handleSave} onCancel={() => setEditing(null)} />;
-  return <EstimateList estimates={estimates} loading={loading} onNew={() => setEditing(defaultEstimate())} onEdit={e => setEditing({ ...e })} onDelete={handleDelete} />;
+  return <EstimateList estimates={estimates} loading={loading} onNew={() => setEditing(defaultEstimate())} onEdit={(e: any) => setEditing({ ...e })} onDelete={handleDelete} />;
 }
