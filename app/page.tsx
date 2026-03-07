@@ -38,6 +38,7 @@ const defaultEstimate = () => ({
   clientId: null as null | number,
   clientName: "",
   clientEmail: "",
+  clientPhone: "",
   issueDate: new Date().toISOString().split("T")[0],
   expiryDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
   lines: [emptyLine()],
@@ -115,6 +116,7 @@ function LabeledInput({ label, value, onChange, placeholder, type = "text" }: { 
 function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave: (e: any) => void; onCancel: () => void }) {
   const [est, setEst] = useState(estimate);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
   const upd = (k: string, v: any) => setEst((p: any) => ({ ...p, [k]: v }));
 
   const subtotal = est.lines.reduce((s: number, l: any) => s + (l.qty * l.rate || 0), 0);
@@ -136,6 +138,7 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
           status,
           client_name: est.clientName,
           client_email: est.clientEmail,
+          client_phone: est.clientPhone,
           issue_date: est.issueDate,
           expiry_date: est.expiryDate,
           notes: est.notes,
@@ -166,6 +169,44 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
     setSaving(false);
   };
 
+  const handleEmail = async () => {
+    if (!est.clientEmail) { alert('Please add a client email first!'); return; }
+    setSending(true);
+    try {
+      await handleSave("sent");
+      const res = await fetch('/api/send-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimate: est })
+      });
+      if (!res.ok) throw new Error('Failed to send');
+      alert('Email sent successfully! ✅');
+    } catch (err) {
+      alert('Error sending email. Check console.');
+      console.error(err);
+    }
+    setSending(false);
+  };
+
+  const handleSMS = async () => {
+    if (!est.clientPhone) { alert('Please add a client phone number first!'); return; }
+    setSending(true);
+    try {
+      await handleSave("sent");
+      const res = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimate: est })
+      });
+      if (!res.ok) throw new Error('Failed to send');
+      alert('Text sent successfully! ✅');
+    } catch (err) {
+      alert('Error sending text. Check console.');
+      console.error(err);
+    }
+    setSending(false);
+  };
+
   return (
     <div style={{ background: "#0f172a", minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: "#e2e8f0" }}>
       <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "14px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -180,16 +221,18 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onCancel} style={btn("ghost")}>Discard</button>
           <button onClick={() => handleSave("draft")} disabled={saving} style={btn("secondary")}>{saving ? "Saving..." : "Save Draft"}</button>
-          <button onClick={() => handleSave("sent")} disabled={saving} style={btn("primary")}>{saving ? "Saving..." : "Send Estimate →"}</button>
+          <button onClick={handleEmail} disabled={sending} style={btn("primary")}>📧 {sending ? "Sending..." : "Email Client"}</button>
+          <button onClick={handleSMS} disabled={sending} style={btn("primary")}>💬 {sending ? "Sending..." : "Text Client"}</button>
         </div>
       </div>
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "32px 24px", display: "grid", gridTemplateColumns: "1fr 280px", gap: 24 }}>
         <div>
           <Section title="Client">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
               <LabeledInput label="Client Name" value={est.clientName} onChange={(v: string) => upd("clientName", v)} placeholder="Acme Corp" />
               <LabeledInput label="Client Email" value={est.clientEmail} onChange={(v: string) => upd("clientEmail", v)} placeholder="billing@client.com" type="email" />
+              <LabeledInput label="Client Phone" value={est.clientPhone || ""} onChange={(v: string) => upd("clientPhone", v)} placeholder="+1 555 000 0000" type="tel" />
             </div>
           </Section>
 
@@ -240,7 +283,8 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
               <span style={{ fontWeight: 800, fontSize: 22, color: "#6366f1", fontFamily: "monospace" }}>{formatCurrency(total)}</span>
             </div>
             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={() => handleSave("sent")} disabled={saving} style={{ ...btn("primary"), width: "100%", justifyContent: "center" }}>{saving ? "Saving..." : "Send to Client →"}</button>
+              <button onClick={handleEmail} disabled={sending} style={{ ...btn("primary"), width: "100%", justifyContent: "center" }}>📧 {sending ? "Sending..." : "Email Client"}</button>
+              <button onClick={handleSMS} disabled={sending} style={{ ...btn("primary"), width: "100%", justifyContent: "center" }}>💬 {sending ? "Sending..." : "Text Client"}</button>
               <button onClick={() => handleSave("draft")} disabled={saving} style={{ ...btn("secondary"), width: "100%", justifyContent: "center" }}>{saving ? "Saving..." : "Save as Draft"}</button>
             </div>
             <div style={{ marginTop: 14, padding: "10px 12px", background: "#0f172a", borderRadius: 8, fontSize: 12, color: "#64748b" }}>
@@ -366,6 +410,7 @@ export default function App() {
         status: est.status,
         clientName: est.client_name || "",
         clientEmail: est.client_email || "",
+        clientPhone: est.client_phone || "",
         issueDate: est.issue_date,
         expiryDate: est.expiry_date,
         notes: est.notes || "",
