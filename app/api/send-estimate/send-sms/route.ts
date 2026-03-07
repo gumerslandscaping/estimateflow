@@ -1,10 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import twilio from 'twilio'
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-)
 
 export async function POST(request: NextRequest) {
   const { estimate } = await request.json()
@@ -17,12 +11,29 @@ export async function POST(request: NextRequest) {
   const tax = estimate.taxEnabled ? subtotal * 0.08 : 0
   const total = subtotal + tax
 
+  const body = `Hi ${estimate.clientName}! Your estimate ${estimate.number}:\n\n${lines}\n\nTotal: $${total.toFixed(2)}\nValid until: ${estimate.expiryDate}`
+
   try {
-    await client.messages.create({
-      body: `Hi ${estimate.clientName}! Your estimate ${estimate.number} from Gumer's Landscaping:\n\n${lines}\n\nTotal: $${total.toFixed(2)}\nValid until: ${estimate.expiryDate}\n\nReply to this message with any questions!`,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: estimate.clientPhone
-    })
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          From: process.env.TWILIO_PHONE_NUMBER!,
+          To: estimate.clientPhone,
+          Body: body,
+        }).toString(),
+      }
+    )
+
+    if (!response.ok) {
+      const err = await response.json()
+      throw new Error(err.message)
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
