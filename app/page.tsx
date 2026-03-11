@@ -2,8 +2,16 @@
 
 import { supabase } from '../lib/supabase'
 import { useState, useEffect } from "react";
+import Image from "next/image";
 
 const TAX_RATE = 0.08;
+const PRIMARY = "#1a4a1a";
+const ACCENT = "#f5a623";
+const BG = "#0d1f0d";
+const CARD = "#152615";
+const BORDER = "#2a4a2a";
+const TEXT = "#e8f5e8";
+const MUTED = "#6b8f6b";
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -71,16 +79,16 @@ function LineRow({ line, onChange, onRemove, canRemove }: { line: any; onChange:
         {["hr","day","unit","item","flat","mo"].map(u => <option key={u}>{u}</option>)}
       </select>
       <input type="number" min="0" step="0.01" value={line.rate} onChange={e => update("rate", parseFloat(e.target.value) || 0)} style={iS({ center: true })} placeholder="0.00" />
-      <div style={{ textAlign: "right", fontWeight: 600, color: "#e2e8f0", fontSize: 14, fontFamily: "monospace" }}>{formatCurrency(total)}</div>
-      <button onClick={onRemove} disabled={!canRemove} style={{ background: "none", border: "none", cursor: canRemove ? "pointer" : "default", color: canRemove ? "#f87171" : "#334155", fontSize: 20, padding: 0 }}>×</button>
+      <div style={{ textAlign: "right", fontWeight: 600, color: TEXT, fontSize: 14, fontFamily: "monospace" }}>{formatCurrency(total)}</div>
+      <button onClick={onRemove} disabled={!canRemove} style={{ background: "none", border: "none", cursor: canRemove ? "pointer" : "default", color: canRemove ? "#f87171" : BORDER, fontSize: 20, padding: 0 }}>×</button>
     </div>
   );
 }
 
 function iS({ center }: { center?: boolean } = {}): React.CSSProperties {
   return {
-    background: "#0f172a", border: "1px solid #334155", borderRadius: 8,
-    color: "#e2e8f0", padding: "8px 10px", fontSize: 13,
+    background: BG, border: `1px solid ${BORDER}`, borderRadius: 8,
+    color: TEXT, padding: "8px 10px", fontSize: 13,
     fontFamily: "inherit", outline: "none",
     textAlign: center ? "center" : "left", width: "100%", boxSizing: "border-box",
   };
@@ -88,17 +96,18 @@ function iS({ center }: { center?: boolean } = {}): React.CSSProperties {
 
 function btn(variant: string): React.CSSProperties {
   const base: React.CSSProperties = { border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "inherit" } as React.CSSProperties;
-  if (variant === "primary")   return { ...base, background: "#6366f1", color: "#fff" };
-  if (variant === "secondary") return { ...base, background: "#1e293b", color: "#94a3b8", border: "1px solid #334155" };
-  if (variant === "ghost")     return { ...base, background: "transparent", color: "#64748b", border: "1px solid #334155" };
+  if (variant === "primary")   return { ...base, background: ACCENT, color: "#000" };
+  if (variant === "secondary") return { ...base, background: CARD, color: MUTED, border: `1px solid ${BORDER}` };
+  if (variant === "ghost")     return { ...base, background: "transparent", color: MUTED, border: `1px solid ${BORDER}` };
+  if (variant === "green")     return { ...base, background: PRIMARY, color: TEXT, border: `1px solid ${BORDER}` };
   if (variant === "danger")    return { ...base, background: "#450a0a", color: "#f87171", border: "1px solid #f8717133" };
   return base;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 12, padding: 20, marginBottom: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>{title}</div>
+    <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>{title}</div>
       {children}
     </div>
   );
@@ -107,7 +116,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function LabeledInput({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: 11, color: "#64748b", fontWeight: 600, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</label>
+      <label style={{ display: "block", fontSize: 11, color: MUTED, fontWeight: 600, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</label>
       <input type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} style={{ ...iS(), width: "100%", boxSizing: "border-box" }} />
     </div>
   );
@@ -208,20 +217,21 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
   };
 
   return (
-    <div style={{ background: "#0f172a", minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: "#e2e8f0" }}>
-      <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "14px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: TEXT }}>
+      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "14px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <button onClick={onCancel} style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 22, padding: 0 }}>←</button>
+          <button onClick={onCancel} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 22, padding: 0 }}>←</button>
+          <Image src="/logo.png" alt="Gumers Landscaping" width={36} height={36} style={{ borderRadius: 6, objectFit: "contain" }} />
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>{est.number}</div>
-            <div style={{ fontSize: 12, color: "#64748b" }}>Editing estimate</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: TEXT }}>{est.number}</div>
+            <div style={{ fontSize: 12, color: MUTED }}>Editing estimate</div>
           </div>
           <Badge status={est.status} />
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onCancel} style={btn("ghost")}>Discard</button>
           <button onClick={() => handleSave("draft")} disabled={saving} style={btn("secondary")}>{saving ? "Saving..." : "Save Draft"}</button>
-          <button onClick={handleEmail} disabled={sending} style={btn("primary")}>📧 {sending ? "Sending..." : "Email Client"}</button>
+          <button onClick={handleEmail} disabled={sending} style={btn("green")}>📧 {sending ? "Sending..." : "Email Client"}</button>
           <button onClick={handleSMS} disabled={sending} style={btn("primary")}>💬 {sending ? "Sending..." : "Text Client"}</button>
         </div>
       </div>
@@ -230,8 +240,8 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
         <div>
           <Section title="Client">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              <LabeledInput label="Client Name" value={est.clientName} onChange={(v: string) => upd("clientName", v)} placeholder="Acme Corp" />
-              <LabeledInput label="Client Email" value={est.clientEmail} onChange={(v: string) => upd("clientEmail", v)} placeholder="billing@client.com" type="email" />
+              <LabeledInput label="Client Name" value={est.clientName} onChange={(v: string) => upd("clientName", v)} placeholder="John Smith" />
+              <LabeledInput label="Client Email" value={est.clientEmail} onChange={(v: string) => upd("clientEmail", v)} placeholder="john@email.com" type="email" />
               <LabeledInput label="Client Phone" value={est.clientPhone || ""} onChange={(v: string) => upd("clientPhone", v)} placeholder="+1 555 000 0000" type="tel" />
             </div>
           </Section>
@@ -246,7 +256,7 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
           <Section title="Line Items">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 80px 110px 100px 32px", gap: 8, marginBottom: 8 }}>
               {["Description","Qty","Unit","Rate","Total",""].map((h,i) => (
-                <div key={i} style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: i >= 3 ? "center" : "left" }}>{h}</div>
+                <div key={i} style={{ fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: i >= 3 ? "center" : "left" }}>{h}</div>
               ))}
             </div>
             {est.lines.map((l: any) => (
@@ -265,30 +275,30 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
         </div>
 
         <div>
-          <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 12, padding: 20, position: "sticky", top: 24 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>Summary</div>
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, position: "sticky", top: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>Summary</div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 13, color: "#94a3b8" }}>Subtotal</span>
-              <span style={{ fontSize: 13, color: "#94a3b8", fontFamily: "monospace" }}>{formatCurrency(subtotal)}</span>
+              <span style={{ fontSize: 13, color: MUTED }}>Subtotal</span>
+              <span style={{ fontSize: 13, color: MUTED, fontFamily: "monospace" }}>{formatCurrency(subtotal)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <label style={{ fontSize: 13, color: "#94a3b8", display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                <input type="checkbox" checked={est.taxEnabled} onChange={e => upd("taxEnabled", e.target.checked)} style={{ accentColor: "#6366f1" }} />
+              <label style={{ fontSize: 13, color: MUTED, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input type="checkbox" checked={est.taxEnabled} onChange={e => upd("taxEnabled", e.target.checked)} style={{ accentColor: ACCENT }} />
                 Tax (8%)
               </label>
-              <span style={{ fontSize: 13, color: "#94a3b8", fontFamily: "monospace" }}>{formatCurrency(tax)}</span>
+              <span style={{ fontSize: 13, color: MUTED, fontFamily: "monospace" }}>{formatCurrency(tax)}</span>
             </div>
-            <div style={{ borderTop: "1px solid #334155", marginTop: 12, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, color: "#f1f5f9" }}>Total</span>
-              <span style={{ fontWeight: 800, fontSize: 22, color: "#6366f1", fontFamily: "monospace" }}>{formatCurrency(total)}</span>
+            <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 12, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 700, color: TEXT }}>Total</span>
+              <span style={{ fontWeight: 800, fontSize: 22, color: ACCENT, fontFamily: "monospace" }}>{formatCurrency(total)}</span>
             </div>
             <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-              <button onClick={handleEmail} disabled={sending} style={{ ...btn("primary"), width: "100%", justifyContent: "center" }}>📧 {sending ? "Sending..." : "Email Client"}</button>
+              <button onClick={handleEmail} disabled={sending} style={{ ...btn("green"), width: "100%", justifyContent: "center" }}>📧 {sending ? "Sending..." : "Email Client"}</button>
               <button onClick={handleSMS} disabled={sending} style={{ ...btn("primary"), width: "100%", justifyContent: "center" }}>💬 {sending ? "Sending..." : "Text Client"}</button>
               <button onClick={() => handleSave("draft")} disabled={saving} style={{ ...btn("secondary"), width: "100%", justifyContent: "center" }}>{saving ? "Saving..." : "Save as Draft"}</button>
             </div>
-            <div style={{ marginTop: 14, padding: "10px 12px", background: "#0f172a", borderRadius: 8, fontSize: 12, color: "#64748b" }}>
-              📅 Valid until <strong style={{ color: "#94a3b8" }}>{formatDate(est.expiryDate)}</strong>
+            <div style={{ marginTop: 14, padding: "10px 12px", background: BG, borderRadius: 8, fontSize: 12, color: MUTED }}>
+              📅 Valid until <strong style={{ color: TEXT }}>{formatDate(est.expiryDate)}</strong>
             </div>
           </div>
         </div>
@@ -305,13 +315,14 @@ function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: { estimat
   const accepted = estimates.filter(e => e.status === "accepted").length;
 
   return (
-    <div style={{ background: "#0f172a", minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: "#e2e8f0" }}>
-      <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "20px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#f1f5f9", letterSpacing: "-0.02em" }}>
-            <span style={{ color: "#6366f1" }}>◈</span> EstimateFlow
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: TEXT }}>
+      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Image src="/logo.png" alt="Gumers Landscaping" width={52} height={52} style={{ borderRadius: 10, objectFit: "contain" }} />
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: TEXT, letterSpacing: "-0.02em" }}>Gumers Landscaping</div>
+            <div style={{ fontSize: 11, color: ACCENT, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Estimate Manager</div>
           </div>
-          <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>Estimates & Quotes</div>
         </div>
         <button onClick={onNew} style={{ ...btn("primary"), fontSize: 14, padding: "10px 20px" }}>+ New Estimate</button>
       </div>
@@ -323,35 +334,35 @@ function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: { estimat
             { label: "Accepted", value: accepted, icon: "✅" },
             { label: "Pipeline Value", value: formatCurrency(totalValue), icon: "💰" },
           ].map((s, i) => (
-            <div key={i} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 12, padding: "18px 20px" }}>
+            <div key={i} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "18px 20px" }}>
               <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: "#f1f5f9", fontFamily: "monospace" }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 12, overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontWeight: 700, color: "#f1f5f9" }}>All Estimates</span>
-            <span style={{ fontSize: 12, color: "#64748b" }}>{estimates.length} total</span>
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: `1px solid ${BORDER}`, display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontWeight: 700, color: TEXT }}>All Estimates</span>
+            <span style={{ fontSize: 12, color: MUTED }}>{estimates.length} total</span>
           </div>
 
           {loading ? (
-            <div style={{ padding: 60, textAlign: "center", color: "#64748b" }}>Loading estimates...</div>
+            <div style={{ padding: 60, textAlign: "center", color: MUTED }}>Loading estimates...</div>
           ) : estimates.length === 0 ? (
-            <div style={{ padding: 60, textAlign: "center", color: "#64748b" }}>
+            <div style={{ padding: 60, textAlign: "center", color: MUTED }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>No estimates yet</div>
+              <div style={{ fontWeight: 600, marginBottom: 6, color: TEXT }}>No estimates yet</div>
               <div style={{ fontSize: 13 }}>Create your first estimate to get started</div>
               <button onClick={onNew} style={{ ...btn("primary"), margin: "20px auto 0" }}>+ New Estimate</button>
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #334155" }}>
+                <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
                   {["Number","Client","Issue Date","Expiry","Total","Status",""].map((h, i) => (
-                    <th key={i} style={{ padding: "10px 16px", textAlign: i >= 4 ? "right" : "left", fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                    <th key={i} style={{ padding: "10px 16px", textAlign: i >= 4 ? "right" : "left", fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -361,17 +372,17 @@ function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: { estimat
                   const tot = est.taxEnabled ? sub * (1 + TAX_RATE) : sub;
                   return (
                     <tr key={est.id} onClick={() => onEdit(est)}
-                      style={{ borderBottom: "1px solid #0f172a", cursor: "pointer" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#0f172a"}
+                      style={{ borderBottom: `1px solid ${BG}`, cursor: "pointer" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = BG}
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}>
-                      <td style={{ padding: "14px 16px", fontWeight: 700, color: "#6366f1", fontSize: 13 }}>{est.number}</td>
+                      <td style={{ padding: "14px 16px", fontWeight: 700, color: ACCENT, fontSize: 13 }}>{est.number}</td>
                       <td style={{ padding: "14px 16px" }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{est.clientName || <span style={{ color: "#475569" }}>No client</span>}</div>
-                        {est.clientEmail && <div style={{ fontSize: 11, color: "#64748b" }}>{est.clientEmail}</div>}
+                        <div style={{ fontWeight: 600, fontSize: 14, color: TEXT }}>{est.clientName || <span style={{ color: MUTED }}>No client</span>}</div>
+                        {est.clientEmail && <div style={{ fontSize: 11, color: MUTED }}>{est.clientEmail}</div>}
                       </td>
-                      <td style={{ padding: "14px 16px", fontSize: 13, color: "#94a3b8" }}>{formatDate(est.issueDate)}</td>
-                      <td style={{ padding: "14px 16px", fontSize: 13, color: "#94a3b8" }}>{formatDate(est.expiryDate)}</td>
-                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", fontSize: 14 }}>{formatCurrency(tot)}</td>
+                      <td style={{ padding: "14px 16px", fontSize: 13, color: MUTED }}>{formatDate(est.issueDate)}</td>
+                      <td style={{ padding: "14px 16px", fontSize: 13, color: MUTED }}>{formatDate(est.expiryDate)}</td>
+                      <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", fontSize: 14, color: TEXT }}>{formatCurrency(tot)}</td>
                       <td style={{ padding: "14px 16px", textAlign: "right" }}><Badge status={est.status} /></td>
                       <td style={{ padding: "14px 16px", textAlign: "right" }}>
                         <button onClick={e => { e.stopPropagation(); onDelete(est.id); }} style={{ ...btn("danger"), padding: "4px 10px", fontSize: 12 }}>Delete</button>
