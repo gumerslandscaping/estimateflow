@@ -71,16 +71,41 @@ function Badge({ status }: { status: string }) {
 function LineRow({ line, onChange, onRemove, canRemove }: { line: any; onChange: (l: any) => void; onRemove: () => void; canRemove: boolean }) {
   const total = (line.qty || 0) * (line.rate || 0);
   const update = (k: string, v: any) => onChange({ ...line, [k]: v });
+  const [suggesting, setSuggesting] = useState(false);
+
+  const suggestPrice = async () => {
+    if (!line.description) { alert('Type a service description first!'); return; }
+    setSuggesting(true);
+    try {
+      const res = await fetch('/api/suggest-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service: line.description })
+      });
+      const data = await res.json();
+      onChange({ ...line, rate: data.price, unit: data.unit });
+    } catch (err) {
+      console.error(err);
+    }
+    setSuggesting(false);
+  };
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 80px 110px 100px 32px", gap: 8, alignItems: "center", marginBottom: 6 }}>
-      <input placeholder="Description…" value={line.description} onChange={e => update("description", e.target.value)} style={iS()} />
-      <input type="number" min="0" value={line.qty} onChange={e => update("qty", parseFloat(e.target.value) || 0)} style={iS({ center: true })} />
-      <select value={line.unit} onChange={e => update("unit", e.target.value)} style={iS({ center: true })}>
-        {["hr","day","unit","item","flat","mo"].map(u => <option key={u}>{u}</option>)}
-      </select>
-      <input type="number" min="0" step="0.01" value={line.rate} onChange={e => update("rate", parseFloat(e.target.value) || 0)} style={iS({ center: true })} placeholder="0.00" />
-      <div style={{ textAlign: "right", fontWeight: 600, color: TEXT, fontSize: 14, fontFamily: "monospace" }}>{formatCurrency(total)}</div>
-      <button onClick={onRemove} disabled={!canRemove} style={{ background: "none", border: "none", cursor: canRemove ? "pointer" : "default", color: canRemove ? "#f87171" : BORDER, fontSize: 20, padding: 0 }}>×</button>
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 80px 110px 100px 32px", gap: 8, alignItems: "center" }}>
+        <input placeholder="Description…" value={line.description} onChange={e => update("description", e.target.value)} style={iS()} />
+        <input type="number" min="0" value={line.qty} onChange={e => update("qty", parseFloat(e.target.value) || 0)} style={iS({ center: true })} />
+        <select value={line.unit} onChange={e => update("unit", e.target.value)} style={iS({ center: true })}>
+          {["hr","day","unit","item","flat","mo","sqft"].map(u => <option key={u}>{u}</option>)}
+        </select>
+        <input type="number" min="0" step="0.01" value={line.rate} onChange={e => update("rate", parseFloat(e.target.value) || 0)} style={iS({ center: true })} placeholder="0.00" />
+        <div style={{ textAlign: "right", fontWeight: 600, color: TEXT, fontSize: 14, fontFamily: "monospace" }}>{formatCurrency(total)}</div>
+        <button onClick={onRemove} disabled={!canRemove} style={{ background: "none", border: "none", cursor: canRemove ? "pointer" : "default", color: canRemove ? "#f87171" : BORDER, fontSize: 20, padding: 0 }}>×</button>
+      </div>
+      <button onClick={suggestPrice} disabled={suggesting}
+        style={{ marginTop: 4, background: "transparent", border: `1px solid ${ACCENT}33`, borderRadius: 6, color: ACCENT, fontSize: 11, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit" }}>
+        {suggesting ? "✨ Thinking..." : "✨ AI Suggest Price"}
+      </button>
     </div>
   );
 }
