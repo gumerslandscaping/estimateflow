@@ -349,7 +349,10 @@ function EstimateList({ estimates, onNew, onEdit, onDelete, loading }: { estimat
             <div style={{ fontSize: 11, color: ACCENT, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Estimate Manager</div>
           </div>
         </div>
-        <button onClick={onNew} style={{ ...btn("primary"), fontSize: 14, padding: "10px 20px" }}>+ New Estimate</button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ ...btn("ghost"), fontSize: 12 }}>Sign Out</button>
+          <button onClick={onNew} style={{ ...btn("primary"), fontSize: 14, padding: "10px 20px" }}>+ New Estimate</button>
+        </div>
       </div>
 
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
@@ -428,10 +431,31 @@ export default function App() {
   const [estimates, setEstimates] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    loadEstimates();
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      window.location.href = '/login'
+      return
+    }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('approved')
+      .eq('id', user.id)
+      .single()
+    if (!profile?.approved) {
+      await supabase.auth.signOut()
+      window.location.href = '/login'
+      return
+    }
+    setAuthChecked(true)
+    loadEstimates()
+  }
 
   const loadEstimates = async () => {
     setLoading(true);
@@ -478,6 +502,12 @@ export default function App() {
     await supabase.from('estimates').delete().eq('id', id);
     setEstimates(prev => prev.filter(e => e.id !== id));
   };
+
+  if (!authChecked) return (
+    <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: MUTED, fontFamily: "sans-serif" }}>
+      Loading...
+    </div>
+  );
 
   if (editing) return <EstimateEditor estimate={editing} onSave={handleSave} onCancel={() => setEditing(null)} />;
   return <EstimateList estimates={estimates} loading={loading} onNew={() => setEditing(defaultEstimate())} onEdit={(e: any) => setEditing({ ...e })} onDelete={handleDelete} />;
