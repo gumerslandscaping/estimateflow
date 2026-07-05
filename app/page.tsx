@@ -2,10 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
+import { supabase } from '../lib/supabase'
 
 export default function Landing() {
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [scrolled, setScrolled] = useState(false)
   const [count, setCount] = useState(0)
 
@@ -28,6 +32,17 @@ export default function Landing() {
     return () => clearInterval(timer)
   }, [])
 
+  const handleSignup = async () => {
+    setError('')
+    if (!email || !password) { setError('Enter both email and password.'); return }
+    if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
+    setLoading(true)
+    const { error } = await supabase.auth.signUp({ email, password })
+    setLoading(false)
+    if (error) { setError(error.message); return }
+    setSubmitted(true)
+  }
+
   const GOLD = "#f5a623"
   const GREEN = "#1a4a1a"
   const DARKGREEN = "#0d1f0d"
@@ -39,7 +54,6 @@ export default function Landing() {
   return (
     <div style={{ background: DARKGREEN, color: TEXT, fontFamily: "'Segoe UI', sans-serif", minHeight: "100vh", overflowX: "hidden" }}>
 
-      {/* Animated background grid */}
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0,
         backgroundImage: `linear-gradient(rgba(245,166,35,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(245,166,35,0.03) 1px, transparent 1px)`,
@@ -47,11 +61,9 @@ export default function Landing() {
         pointerEvents: "none"
       }} />
 
-      {/* Glow orbs */}
       <div style={{ position: "fixed", top: "-20%", left: "-10%", width: 600, height: 600, background: "radial-gradient(circle, rgba(26,74,26,0.4) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
       <div style={{ position: "fixed", bottom: "-20%", right: "-10%", width: 800, height: 800, background: "radial-gradient(circle, rgba(245,166,35,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
 
-      {/* NAV */}
       <nav style={{
         padding: "20px 48px", display: "flex", justifyContent: "space-between", alignItems: "center",
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
@@ -78,7 +90,6 @@ export default function Landing() {
         </div>
       </nav>
 
-      {/* HERO */}
       <section style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "120px 24px 80px" }}>
         <div style={{ maxWidth: 900 }}>
           <div style={{
@@ -124,7 +135,6 @@ export default function Landing() {
             }}>See How It Works</a>
           </div>
 
-          {/* Stats */}
           <div style={{ display: "flex", gap: 48, justifyContent: "center", flexWrap: "wrap" }}>
             {[
               { value: `$${count.toLocaleString()}`, label: "Estimated in beta" },
@@ -140,10 +150,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* DIVIDER */}
       <div style={{ position: "relative", zIndex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${BORDER}, transparent)`, margin: "0 48px" }} />
 
-      {/* STORY */}
       <section style={{ position: "relative", zIndex: 1, padding: "100px 24px" }}>
         <div style={{ maxWidth: 800, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
@@ -186,7 +194,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* FEATURES */}
       <section id="how" style={{ position: "relative", zIndex: 1, padding: "100px 24px", background: `rgba(21,38,21,0.5)` }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 64 }}>
@@ -221,7 +228,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* WHO ITS FOR */}
       <section style={{ position: "relative", zIndex: 1, padding: "100px 24px" }}>
         <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
           <div style={{ fontSize: 11, color: GOLD, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>Who It's Built For</div>
@@ -244,7 +250,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* PRICING */}
       <section style={{ position: "relative", zIndex: 1, padding: "100px 24px", background: `rgba(21,38,21,0.5)` }}>
         <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
           <div style={{ fontSize: 11, color: GOLD, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>Pricing</div>
@@ -285,7 +290,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* SIGNUP */}
       <section id="signup" style={{ position: "relative", zIndex: 1, padding: "120px 24px" }}>
         <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
           <div style={{ fontSize: 11, color: GOLD, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>Get Access</div>
@@ -299,31 +303,39 @@ export default function Landing() {
             <div style={{ background: CARDGREEN, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 40 }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>🏆</div>
               <div style={{ fontWeight: 900, fontSize: 24, color: TEXT, marginBottom: 8 }}>You're In.</div>
-              <div style={{ color: MUTED, fontSize: 15 }}>We'll be in touch with your access shortly.</div>
+              <div style={{ color: MUTED, fontSize: 15 }}>Your account is pending approval. We'll email you once you're approved — usually within a few hours.</div>
             </div>
           ) : (
-            <div style={{ display: "flex", gap: 0, maxWidth: 460, margin: "0 auto", border: `1px solid ${BORDER}`, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 460, margin: "0 auto" }}>
               <input
                 type="email"
                 placeholder="your@email.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                style={{ flex: 1, background: CARDGREEN, border: "none", color: TEXT, padding: "16px 20px", fontSize: 15, fontFamily: "inherit", outline: "none" }}
+                style={{ background: CARDGREEN, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, padding: "16px 20px", fontSize: 15, fontFamily: "inherit", outline: "none" }}
               />
-              <button onClick={() => { if (email) setSubmitted(true) }} style={{
+              <input
+                type="password"
+                placeholder="Create a password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSignup()}
+                style={{ background: CARDGREEN, border: `1px solid ${BORDER}`, borderRadius: 8, color: TEXT, padding: "16px 20px", fontSize: 15, fontFamily: "inherit", outline: "none" }}
+              />
+              {error && <div style={{ color: "#f87171", fontSize: 13 }}>{error}</div>}
+              <button onClick={handleSignup} disabled={loading} style={{
                 background: `linear-gradient(135deg, ${GOLD}, #ffd166)`,
                 color: "#000", border: "none",
-                padding: "16px 28px", fontWeight: 900, fontSize: 14,
+                padding: "16px 28px", fontWeight: 900, fontSize: 14, borderRadius: 8,
                 cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap"
               }}>
-                Get Access →
+                {loading ? "Creating account..." : "Get Access →"}
               </button>
             </div>
           )}
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer style={{ position: "relative", zIndex: 1, borderTop: `1px solid ${BORDER}`, padding: "32px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Image src="/logo.png" alt="CotizaFlow" width={28} height={28} style={{ borderRadius: 6, objectFit: "contain" }} />

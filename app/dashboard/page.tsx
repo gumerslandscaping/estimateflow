@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
+const OWNER_EMAIL = "gumerslandscaping@gmail.com";
+
 const TAX_RATE = 0.08;
 const PRIMARY = "#1a4a1a";
 const ACCENT = "#f5a623";
@@ -161,8 +163,6 @@ function LineRow({ line, onChange, onRemove, canRemove }: { line: any; onChange:
     </div>
   );
 }
-
-// ─── ESTIMATES ───────────────────────────────────────────────────────────────
 
 function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave: (e: any) => void; onCancel: () => void }) {
   const [est, setEst] = useState(estimate);
@@ -424,8 +424,6 @@ function EstimatesTab({ onEdit }: { onEdit: (e: any) => void }) {
   );
 }
 
-// ─── CLIENTS ─────────────────────────────────────────────────────────────────
-
 function ClientsTab() {
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -538,8 +536,6 @@ function ClientsTab() {
   );
 }
 
-// ─── INVOICES ─────────────────────────────────────────────────────────────────
-
 function InvoicesTab() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -642,12 +638,82 @@ function InvoicesTab() {
   );
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function AdminTab() {
+  const [pending, setPending] = useState<any[]>([]);
+  const [approved, setApproved] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadProfiles(); }, []);
+
+  const loadProfiles = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    setPending((data || []).filter((p: any) => !p.approved));
+    setApproved((data || []).filter((p: any) => p.approved));
+    setLoading(false);
+  };
+
+  const approveUser = async (id: string) => {
+    await supabase.from('profiles').update({ approved: true }).eq('id', id);
+    loadProfiles();
+  };
+
+  const revokeUser = async (id: string) => {
+    await supabase.from('profiles').update({ approved: false }).eq('id', id);
+    loadProfiles();
+  };
+
+  if (loading) return <div style={{ padding: 60, textAlign: "center", color: MUTED }}>Loading...</div>;
+
+  return (
+    <div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: TEXT, marginBottom: 24 }}>
+        Admin <span style={{ fontSize: 13, color: MUTED, fontWeight: 400 }}>— approve new signups</span>
+      </div>
+
+      <Section title={`Pending Approval (${pending.length})`}>
+        {pending.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: MUTED, fontSize: 13 }}>No one waiting right now.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pending.map((p: any) => (
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: BG, borderRadius: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: TEXT, fontSize: 14 }}>{p.email || p.id}</div>
+                  <div style={{ fontSize: 11, color: MUTED }}>Signed up {p.created_at ? formatDate(p.created_at) : ""}</div>
+                </div>
+                <button onClick={() => approveUser(p.id)} style={{ ...btn("primary"), fontSize: 12, padding: "6px 14px" }}>✓ Approve</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title={`Approved Users (${approved.length})`}>
+        {approved.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: MUTED, fontSize: 13 }}>No approved users yet.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {approved.map((p: any) => (
+              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", background: BG, borderRadius: 8 }}>
+                <div style={{ fontWeight: 600, color: TEXT, fontSize: 14 }}>{p.email || p.id}</div>
+                {p.email !== OWNER_EMAIL && (
+                  <button onClick={() => revokeUser(p.id)} style={{ ...btn("danger"), fontSize: 12, padding: "6px 14px" }}>Revoke</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
 
 export default function App() {
-  const [tab, setTab] = useState<"estimates" | "clients" | "invoices">("estimates");
+  const [tab, setTab] = useState<"estimates" | "clients" | "invoices" | "admin">("estimates");
   const [editingEstimate, setEditingEstimate] = useState<any>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => { checkAuth(); }, []);
 
@@ -656,8 +722,11 @@ export default function App() {
     if (!user) { window.location.href = '/login'; return; }
     const { data: profile } = await supabase.from('profiles').select('approved').eq('id', user.id).single()
     if (!profile?.approved) { await supabase.auth.signOut(); window.location.href = '/login'; return; }
+    setUserEmail(user.email || "");
     setAuthChecked(true);
   }
+
+  const isAdmin = userEmail === OWNER_EMAIL;
 
   if (!authChecked) return (
     <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: MUTED, fontFamily: "sans-serif" }}>Loading...</div>
@@ -669,7 +738,6 @@ export default function App() {
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: TEXT }}>
-      {/* Header */}
       <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <Image src="/logo.png" alt="Gumers Landscaping" width={44} height={44} style={{ borderRadius: 10, objectFit: "contain" }} />
@@ -681,12 +749,12 @@ export default function App() {
         <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ ...btn("ghost"), fontSize: 12 }}>Sign Out</button>
       </div>
 
-      {/* Tabs */}
       <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", gap: 4 }}>
         {[
           { key: "estimates", label: "📋 Estimates" },
           { key: "clients",   label: "👥 Clients" },
           { key: "invoices",  label: "🧾 Invoices" },
+          ...(isAdmin ? [{ key: "admin", label: "🛡️ Admin" }] : []),
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key as any)} style={{
             background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
@@ -698,11 +766,11 @@ export default function App() {
         ))}
       </div>
 
-      {/* Content */}
       <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
         {tab === "estimates" && <EstimatesTab onEdit={setEditingEstimate} />}
         {tab === "clients" && <ClientsTab />}
         {tab === "invoices" && <InvoicesTab />}
+        {tab === "admin" && isAdmin && <AdminTab />}
       </div>
     </div>
   );
