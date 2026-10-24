@@ -28,7 +28,9 @@ function formatCurrency(n: number): string {
 }
 
 function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  // Plain "YYYY-MM-DD" dates are read as UTC by JS, which shows the day before in US time zones.
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -242,7 +244,7 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
       await supabase.from('invoice_lines').insert(
         inv.lines.map((l: any, i: number) => ({ invoice_id: inv.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, sort_order: i }))
       );
-      alert('Invoice created! ✅ Check the Invoices tab.');
+      alert('Invoice created! ✅ You can find it in My Documents.');
     }
   };
 
@@ -331,95 +333,377 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
   );
 }
 
-function EstimatesTab({ onEdit }: { onEdit: (e: any) => void }) {
-  const [estimates, setEstimates] = useState<any[]>([]);
+
+function InvoiceEditor({ invoice, onDone }: { invoice: any; onDone: () => void }) {
+  const [inv, setInv] = useState(invoice);
+  const [saving, setSaving] = useState(false);
+  const upd = (k: string, v: any) => setInv((p: any) => ({ ...p, [k]: v }));
+
+  const subtotal = inv.lines.reduce((s: number, l: any) => s + (l.qty * l.rate || 0), 0);
+  const tax = inv.taxEnabled ? subtotal * TAX_RATE : 0;
+  const total = subtotal + tax;
+
+  const addLine = () => upd("lines", [...inv.lines, emptyLine()]);
+  const removeLine = (id: string) => upd("lines", inv.lines.filter((l: any) => l.id !== id));
+  const updateLine = (id: string, updated: any) => upd("lines", inv.lines.map((l: any) => l.id === id ? updated : l));
+
+  const handleSave = async (status: string) => {
+    setSaving(true);
+    try {
+      const { error: invError } = await supabase.from('invoices').upsert({
+        id: inv.id, number: inv.number, status,
+        client_name: inv.clientName, client_email: inv.clientEmail, client_phone: inv.clientPhone,
+        issue_date: inv.issueDate, due_date: inv.dueDate, notes: inv.notes, tax_enabled: inv.taxEnabled,
+      });
+      if (invError) throw invError;
+      await supabase.from('invoice_lines').delete().eq('invoice_id', inv.id);
+      const { error: linesError } = await supabase.from('invoice_lines').insert(
+        inv.lines.map((l: any, i: number) => ({ invoice_id: inv.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, sort_order: i }))
+      );
+      if (linesError) throw linesError;
+      onDone();
+    } catch (err) { alert('Error saving.'); console.error(err); }
+    setSaving(false);
+  };
+
+  const isPaid = inv.status === "paid";
+
+  return (
+    <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: TEXT }}>
+      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "14px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button onClick={onDone} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 22, padding: 0 }}>←</button>
+          <Image src="/logo.png" alt="Gumers Landscaping" width={36} height={36} style={{ borderRadius: 6, objectFit: "contain" }} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: TEXT }}>{inv.number}</div>
+            <div style={{ fontSize: 12, color: MUTED }}>Editing invoice</div>
+          </div>
+          <Badge status={inv.status} />
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={onDone} style={btn("ghost")}>Discard</button>
+          <button onClick={() => handleSave(inv.status)} disabled={saving} style={btn("secondary")}>{saving ? "Saving..." : "Save"}</button>
+          {isPaid
+            ? <button onClick={() => handleSave("unpaid")} disabled={saving} style={btn("ghost")}>Mark Unpaid</button>
+            : <button onClick={() => handleSave("paid")} disabled={saving} style={btn("primary")}>✓ Save & Mark Paid</button>}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 920, margin: "0 auto", padding: "32px 24px", display: "grid", gridTemplateColumns: "1fr 280px", gap: 24 }}>
+        <div>
+          <Section title="Customer">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <LabeledInput label="Customer Name" value={inv.clientName} onChange={(v: string) => upd("clientName", v)} placeholder="John Smith or 123 Main St" />
+              <LabeledInput label="Email" value={inv.clientEmail} onChange={(v: string) => upd("clientEmail", v)} placeholder="john@email.com" type="email" />
+              <LabeledInput label="Phone" value={inv.clientPhone || ""} onChange={(v: string) => upd("clientPhone", v)} placeholder="+1 555 000 0000" type="tel" />
+            </div>
+          </Section>
+          <Section title="Dates">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <LabeledInput label="Invoice Date" value={inv.issueDate} onChange={(v: string) => upd("issueDate", v)} type="date" />
+              <LabeledInput label="Due Date" value={inv.dueDate} onChange={(v: string) => upd("dueDate", v)} type="date" />
+            </div>
+          </Section>
+          <Section title="Line Items">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 80px 110px 100px 32px", gap: 8, marginBottom: 8 }}>
+              {["Description","Qty","Unit","Rate","Total",""].map((h,i) => (
+                <div key={i} style={{ fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: i >= 3 ? "center" : "left" }}>{h}</div>
+              ))}
+            </div>
+            {inv.lines.map((l: any) => (
+              <LineRow key={l.id} line={l} onChange={(updated: any) => updateLine(l.id, updated)} onRemove={() => removeLine(l.id)} canRemove={inv.lines.length > 1} />
+            ))}
+            <button onClick={addLine} style={{ ...btn("ghost"), fontSize: 13, marginTop: 8 }}>+ Add Line Item</button>
+          </Section>
+          <Section title="Notes & Terms">
+            <textarea value={inv.notes} onChange={e => upd("notes", e.target.value)} placeholder="Payment due within 30 days." rows={3} style={{ ...iS(), width: "100%", resize: "vertical", lineHeight: 1.6 }} />
+          </Section>
+        </div>
+        <div>
+          <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 20, position: "sticky", top: 24 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>Summary</div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 13, color: MUTED }}>Subtotal</span>
+              <span style={{ fontSize: 13, color: MUTED, fontFamily: "monospace" }}>{formatCurrency(subtotal)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <label style={{ fontSize: 13, color: MUTED, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <input type="checkbox" checked={inv.taxEnabled} onChange={e => upd("taxEnabled", e.target.checked)} style={{ accentColor: ACCENT }} />
+                Tax (8%)
+              </label>
+              <span style={{ fontSize: 13, color: MUTED, fontFamily: "monospace" }}>{formatCurrency(tax)}</span>
+            </div>
+            <div style={{ borderTop: `1px solid ${BORDER}`, marginTop: 12, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 700, color: TEXT }}>Total</span>
+              <span style={{ fontWeight: 800, fontSize: 22, color: ACCENT, fontFamily: "monospace" }}>{formatCurrency(total)}</span>
+            </div>
+            <div style={{ marginTop: 14, padding: "10px 12px", background: BG, borderRadius: 8, fontSize: 12, color: MUTED }}>
+              📅 Due <strong style={{ color: TEXT }}>{formatDate(inv.dueDate)}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Shared document data (estimates + invoices in one list) ----------
+
+type Doc = {
+  kind: "invoice" | "estimate";
+  id: string;
+  number: string;
+  status: string;
+  clientName: string;
+  date: string;
+  dueDate?: string;
+  total: number;
+  paid: number;
+  overdue: boolean;
+  raw: any;
+};
+
+const PAGE_SIZE = 30;
+
+function todayStr(): string {
+  return new Date().toLocaleDateString("en-CA"); // local YYYY-MM-DD
+}
+
+// Supabase returns at most 1000 rows per request, so page through big tables.
+async function fetchAll(table: string, orderBy?: string): Promise<any[]> {
+  const out: any[] = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    let q = supabase.from(table).select('*');
+    if (orderBy) q = q.order(orderBy, { ascending: false });
+    const { data, error } = await q.range(from, from + size - 1);
+    if (error) { console.error(error); break; }
+    if (!data) break;
+    out.push(...data);
+    if (data.length < size) break;
+  }
+  return out;
+}
+
+function groupLines(rows: any[], key: string): Record<string, any[]> {
+  const map: Record<string, any[]> = {};
+  for (const l of rows) (map[l[key]] ||= []).push(l);
+  for (const k in map) map[k].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  return map;
+}
+
+function linesTotal(lines: any[], taxEnabled: boolean): number {
+  const sub = lines.reduce((s: number, l: any) => s + (l.qty * l.rate || 0), 0);
+  return taxEnabled ? sub * (1 + TAX_RATE) : sub;
+}
+
+async function loadDocs(): Promise<Doc[]> {
+  const [ests, estLines, invs, invLines] = await Promise.all([
+    fetchAll('estimates', 'created_at'),
+    fetchAll('estimate_lines'),
+    fetchAll('invoices', 'created_at'),
+    fetchAll('invoice_lines'),
+  ]);
+  const estLineMap = groupLines(estLines, 'estimate_id');
+  const invLineMap = groupLines(invLines, 'invoice_id');
+  const today = todayStr();
+  const mapLines = (ls: any[]) => ls.map((l: any) => ({ id: l.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate }));
+
+  const estimateDocs: Doc[] = ests.map((est: any) => {
+    const lines = mapLines(estLineMap[est.id] || []);
+    const raw = { id: est.id, number: est.number, status: est.status, clientName: est.client_name || "", clientEmail: est.client_email || "", clientPhone: est.client_phone || "", issueDate: est.issue_date, expiryDate: est.expiry_date, notes: est.notes || "", taxEnabled: est.tax_enabled, createdAt: est.created_at, lines: lines.length ? lines : [emptyLine()] };
+    return { kind: "estimate", id: est.id, number: est.number, status: est.status, clientName: raw.clientName, date: est.issue_date || est.created_at, total: linesTotal(lines, est.tax_enabled), paid: 0, overdue: false, raw };
+  });
+
+  const invoiceDocs: Doc[] = invs.map((inv: any) => {
+    const lines = mapLines(invLineMap[inv.id] || []);
+    const raw = { id: inv.id, number: inv.number, status: inv.status, clientName: inv.client_name || "", clientEmail: inv.client_email || "", clientPhone: inv.client_phone || "", issueDate: inv.issue_date, dueDate: inv.due_date, notes: inv.notes || "", taxEnabled: inv.tax_enabled, createdAt: inv.created_at, lines: lines.length ? lines : [emptyLine()] };
+    const total = linesTotal(lines, inv.tax_enabled);
+    const isPaid = inv.status === "paid";
+    const overdue = !isPaid && (inv.status === "overdue" || (!!inv.due_date && inv.due_date < today));
+    return { kind: "invoice", id: inv.id, number: inv.number, status: inv.status, clientName: raw.clientName, date: inv.issue_date || inv.created_at, dueDate: inv.due_date, total, paid: isPaid ? total : 0, overdue, raw };
+  });
+
+  return [...invoiceDocs, ...estimateDocs].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+}
+
+type Filter = "all" | "overdue" | "unpaid" | "paid" | "sent" | "draft";
+
+function DocumentsTab({ onEditEstimate, onEditInvoice }: { onEditEstimate: (e: any) => void; onEditInvoice: (i: any) => void }) {
+  const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [showInvoices, setShowInvoices] = useState(true);
+  const [showEstimates, setShowEstimates] = useState(true);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
-  useEffect(() => { loadEstimates(); }, []);
+  useEffect(() => { (async () => { setLoading(true); setDocs(await loadDocs()); setLoading(false); })(); }, []);
+  useEffect(() => { setPage(1); }, [filter, showInvoices, showEstimates, search]);
 
-  const loadEstimates = async () => {
-    setLoading(true);
-    const { data: ests } = await supabase.from('estimates').select('*').order('created_at', { ascending: false });
-    if (!ests) { setLoading(false); return; }
-    const withLines = await Promise.all(ests.map(async (est) => {
-      const { data: lines } = await supabase.from('estimate_lines').select('*').eq('estimate_id', est.id).order('sort_order');
-      return { id: est.id, number: est.number, status: est.status, clientName: est.client_name || "", clientEmail: est.client_email || "", clientPhone: est.client_phone || "", issueDate: est.issue_date, expiryDate: est.expiry_date, notes: est.notes || "", taxEnabled: est.tax_enabled, createdAt: est.created_at, lines: (lines || []).map((l: any) => ({ id: l.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate })) };
-    }));
-    setEstimates(withLines);
-    setLoading(false);
+  const setPaid = async (doc: Doc, paid: boolean) => {
+    const status = paid ? "paid" : "unpaid";
+    const { error } = await supabase.from('invoices').update({ status }).eq('id', doc.id);
+    if (error) { alert('Could not update. Try again.'); return; }
+    setDocs(prev => prev.map(d => d.id === doc.id ? {
+      ...d, status, paid: paid ? d.total : 0,
+      overdue: !paid && !!d.dueDate && d.dueDate < todayStr(),
+      raw: { ...d.raw, status },
+    } : d));
   };
 
-  const handleDelete = async (id: string) => {
-    await supabase.from('estimates').delete().eq('id', id);
-    setEstimates(prev => prev.filter(e => e.id !== id));
+  const matchesFilter = (d: Doc, f: Filter) => {
+    if (f === "all") return true;
+    if (f === "overdue") return d.kind === "invoice" && d.overdue;
+    if (f === "unpaid") return d.kind === "invoice" && d.status !== "paid";
+    if (f === "paid") return d.kind === "invoice" && d.status === "paid";
+    if (f === "sent") return d.kind === "estimate" && (d.status === "sent" || d.status === "viewed");
+    if (f === "draft") return d.kind === "estimate" && d.status === "draft";
+    return true;
   };
 
-  const totalValue = estimates.reduce((s, e) => { const sub = e.lines.reduce((ls: number, l: any) => ls + (l.qty * l.rate || 0), 0); return s + (e.taxEnabled ? sub * (1 + TAX_RATE) : sub); }, 0);
-  const accepted = estimates.filter(e => e.status === "accepted").length;
+  const typeOk = (d: Doc) => (d.kind === "invoice" ? showInvoices : showEstimates);
+  const q = search.trim().toLowerCase();
+  const searchOk = (d: Doc) => !q || d.clientName.toLowerCase().includes(q) || (d.number || "").toLowerCase().includes(q);
+
+  const counts: Record<Filter, number> = { all: 0, overdue: 0, unpaid: 0, paid: 0, sent: 0, draft: 0 };
+  for (const d of docs) for (const f of Object.keys(counts) as Filter[]) if (matchesFilter(d, f)) counts[f]++;
+
+  const filtered = docs.filter(d => matchesFilter(d, filter) && typeOk(d) && searchOk(d));
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const shown = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const filteredInvoices = filtered.filter(d => d.kind === "invoice");
+  const totalAmt = filteredInvoices.reduce((s, d) => s + d.total, 0);
+  const paidAmt = filteredInvoices.reduce((s, d) => s + d.paid, 0);
+
+  const FILTERS: { key: Filter; label: string; color: string }[] = [
+    { key: "all",     label: "All Documents", color: "#60a5fa" },
+    { key: "overdue", label: "Overdue",       color: "#f87171" },
+    { key: "unpaid",  label: "Unpaid",        color: "#fb923c" },
+    { key: "paid",    label: "Paid",          color: "#34d399" },
+    { key: "sent",    label: "Estimates Sent", color: "#a78bfa" },
+    { key: "draft",   label: "Drafts",        color: "#94a3b8" },
+  ];
+
+  const th = (align: "left" | "right" = "left"): React.CSSProperties => ({ padding: "10px 14px", textAlign: align, fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" });
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 32 }}>
-        {[
-          { label: "Total Estimates", value: estimates.length, icon: "📋" },
-          { label: "Accepted", value: accepted, icon: "✅" },
-          { label: "Pipeline Value", value: formatCurrency(totalValue), icon: "💰" },
-        ].map((s, i) => (
-          <div key={i} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "18px 20px" }}>
-            <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{s.label}</div>
-          </div>
-        ))}
+      {/* Status filters with counts */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {FILTERS.map(f => {
+          const active = filter === f.key;
+          return (
+            <button key={f.key} onClick={() => setFilter(f.key)} style={{
+              display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontFamily: "inherit",
+              background: active ? PRIMARY : CARD, color: active ? TEXT : MUTED,
+              border: `1px solid ${active ? ACCENT : BORDER}`, borderRadius: 8, padding: "7px 12px", fontSize: 13, fontWeight: active ? 700 : 500,
+            }}>
+              {f.label}
+              <span style={{ background: f.color, color: "#000", borderRadius: 10, padding: "1px 8px", fontSize: 11, fontWeight: 800 }}>{counts[f.key]}</span>
+            </button>
+          );
+        })}
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={() => onEdit(defaultEstimate())} style={{ ...btn("primary"), fontSize: 14, padding: "10px 20px" }}>+ New Estimate</button>
+
+      {/* Type checkboxes + search */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 18 }}>
+          {[
+            { label: "Invoice", checked: showInvoices, set: setShowInvoices },
+            { label: "Estimate", checked: showEstimates, set: setShowEstimates },
+          ].map(c => (
+            <label key={c.label} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: MUTED, cursor: "pointer" }}>
+              <input type="checkbox" checked={c.checked} onChange={e => c.set(e.target.checked)} style={{ accentColor: ACCENT }} />
+              {c.label}
+            </label>
+          ))}
+        </div>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customer or number…" style={{ ...iS(), width: 260, maxWidth: "100%" }} />
       </div>
+
+      {/* Document list */}
       <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
         {loading ? (
           <div style={{ padding: 60, textAlign: "center", color: MUTED }}>Loading...</div>
-        ) : estimates.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div style={{ padding: 60, textAlign: "center", color: MUTED }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>📄</div>
-            <div style={{ fontWeight: 600, color: TEXT, marginBottom: 6 }}>No estimates yet</div>
-            <button onClick={() => onEdit(defaultEstimate())} style={{ ...btn("primary"), margin: "20px auto 0" }}>+ New Estimate</button>
+            <div style={{ fontWeight: 600, color: TEXT, marginBottom: 6 }}>{docs.length === 0 ? "No documents yet" : "Nothing matches this filter"}</div>
+            {docs.length === 0 && <div style={{ fontSize: 13 }}>Use the + buttons above to create your first invoice or estimate.</div>}
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                {["Number","Client","Issue Date","Expiry","Total","Status",""].map((h, i) => (
-                  <th key={i} style={{ padding: "10px 16px", textAlign: i >= 4 ? "right" : "left", fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {estimates.map(est => {
-                const sub = est.lines.reduce((s: number, l: any) => s + (l.qty * l.rate || 0), 0);
-                const tot = est.taxEnabled ? sub * (1 + TAX_RATE) : sub;
-                return (
-                  <tr key={est.id} onClick={() => onEdit({ ...est })} style={{ borderBottom: `1px solid ${BG}`, cursor: "pointer" }}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                  <th style={th()}>Customer</th>
+                  <th style={th()}>Document</th>
+                  <th style={th()}>Number</th>
+                  <th style={th()}>Date</th>
+                  <th style={th("right")}>Paid</th>
+                  <th style={th("right")}>Total</th>
+                  <th style={th("right")}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map(d => (
+                  <tr key={`${d.kind}-${d.id}`}
+                    onClick={() => d.kind === "estimate" ? onEditEstimate({ ...d.raw }) : onEditInvoice({ ...d.raw })}
+                    style={{ borderBottom: `1px solid ${BG}`, cursor: "pointer" }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = BG}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}>
-                    <td style={{ padding: "14px 16px", fontWeight: 700, color: ACCENT, fontSize: 13 }}>{est.number}</td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: TEXT }}>{est.clientName || <span style={{ color: MUTED }}>No client</span>}</div>
-                      {est.clientEmail && <div style={{ fontSize: 11, color: MUTED }}>{est.clientEmail}</div>}
+                    <td style={{ padding: "12px 14px", fontWeight: 600, fontSize: 14, color: TEXT, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {d.clientName || <span style={{ color: MUTED }}>No customer</span>}
                     </td>
-                    <td style={{ padding: "14px 16px", fontSize: 13, color: MUTED }}>{formatDate(est.issueDate)}</td>
-                    <td style={{ padding: "14px 16px", fontSize: 13, color: MUTED }}>{formatDate(est.expiryDate)}</td>
-                    <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", fontSize: 14, color: TEXT }}>{formatCurrency(tot)}</td>
-                    <td style={{ padding: "14px 16px", textAlign: "right" }}><Badge status={est.status} /></td>
-                    <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                      <button onClick={e => { e.stopPropagation(); handleDelete(est.id); }} style={{ ...btn("danger"), padding: "4px 10px", fontSize: 12 }}>Delete</button>
+                    <td style={{ padding: "12px 14px", fontSize: 13, color: MUTED, whiteSpace: "nowrap" }}>
+                      <span style={{ marginRight: 8 }}>{d.kind === "invoice" ? "Invoice" : "Estimate"}</span>
+                      <Badge status={d.overdue ? "overdue" : d.status} />
+                    </td>
+                    <td style={{ padding: "12px 14px", fontWeight: 700, color: ACCENT, fontSize: 13 }}>{d.number}</td>
+                    <td style={{ padding: "12px 14px", fontSize: 13, color: MUTED, whiteSpace: "nowrap" }}>{d.date ? formatDate(d.date) : "—"}</td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontFamily: "monospace", fontSize: 13, color: d.paid > 0 ? "#34d399" : MUTED }}>
+                      {d.kind === "invoice" ? formatCurrency(d.paid) : "—"}
+                    </td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", fontSize: 14, color: TEXT }}>{formatCurrency(d.total)}</td>
+                    <td style={{ padding: "12px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      {d.kind === "invoice" && (d.status === "paid"
+                        ? <button onClick={e => { e.stopPropagation(); setPaid(d, false); }} style={{ ...btn("ghost"), padding: "4px 10px", fontSize: 12 }}>Undo Paid</button>
+                        : <button onClick={e => { e.stopPropagation(); setPaid(d, true); }} style={{ ...btn("green"), padding: "4px 10px", fontSize: 12 }}>✓ Mark Paid</button>)}
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Totals, like InvoiceHome's footer */}
+        {!loading && filtered.length > 0 && (
+          <div style={{ borderTop: `1px solid ${BORDER}`, padding: "14px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+            {[
+              { label: "Total", value: totalAmt, color: TEXT },
+              { label: "Paid Amount", value: paidAmt, color: "#34d399" },
+              { label: "Balance Due", value: totalAmt - paidAmt, color: ACCENT },
+            ].map(t => (
+              <div key={t.label}>
+                <div style={{ fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{t.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: t.color, fontFamily: "monospace" }}>{formatCurrency(t.value)}</div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {pages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 16 }}>
+          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ ...btn("ghost"), opacity: page === 1 ? 0.4 : 1 }}>← Previous</button>
+          <span style={{ fontSize: 13, color: MUTED }}>Page {page} of {pages}</span>
+          <button disabled={page === pages} onClick={() => setPage(p => p + 1)} style={{ ...btn("ghost"), opacity: page === pages ? 0.4 : 1 }}>Next →</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -536,104 +820,107 @@ function ClientsTab() {
   );
 }
 
-function InvoicesTab() {
-  const [invoices, setInvoices] = useState<any[]>([]);
+function ReportsTab() {
+  const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState<any>(null);
 
-  useEffect(() => { loadInvoices(); }, []);
+  useEffect(() => { (async () => { setLoading(true); setDocs(await loadDocs()); setLoading(false); })(); }, []);
 
-  const loadInvoices = async () => {
-    setLoading(true);
-    const { data: invs } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
-    if (!invs) { setLoading(false); return; }
-    const withLines = await Promise.all(invs.map(async (inv) => {
-      const { data: lines } = await supabase.from('invoice_lines').select('*').eq('invoice_id', inv.id).order('sort_order');
-      return { id: inv.id, number: inv.number, status: inv.status, clientName: inv.client_name || "", clientEmail: inv.client_email || "", clientPhone: inv.client_phone || "", issueDate: inv.issue_date, dueDate: inv.due_date, notes: inv.notes || "", taxEnabled: inv.tax_enabled, createdAt: inv.created_at, lines: (lines || []).map((l: any) => ({ id: l.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate })) };
-    }));
-    setInvoices(withLines);
-    setLoading(false);
-  };
+  if (loading) return <div style={{ padding: 60, textAlign: "center", color: MUTED }}>Loading...</div>;
 
-  const handleDelete = async (id: string) => {
-    await supabase.from('invoices').delete().eq('id', id);
-    setInvoices(prev => prev.filter(i => i.id !== id));
-  };
+  const invoices = docs.filter(d => d.kind === "invoice");
+  const openEstimates = docs.filter(d => d.kind === "estimate" && !["accepted", "declined"].includes(d.status));
+  const invoiced = invoices.reduce((s, d) => s + d.total, 0);
+  const collected = invoices.reduce((s, d) => s + d.paid, 0);
+  const overdueAmt = invoices.filter(d => d.overdue).reduce((s, d) => s + d.total, 0);
 
-  const markPaid = async (id: string) => {
-    await supabase.from('invoices').update({ status: 'paid' }).eq('id', id);
-    setInvoices(prev => prev.map(i => i.id === id ? { ...i, status: 'paid' } : i));
-  };
+  // Last 12 months, newest first
+  const months: { key: string; label: string; invoiced: number; collected: number; count: number }[] = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+    months.push({ key, label: dt.toLocaleDateString("en-US", { month: "short", year: "numeric" }), invoiced: 0, collected: 0, count: 0 });
+  }
+  for (const d of invoices) {
+    const m = months.find(m => (d.date || "").startsWith(m.key));
+    if (m) { m.invoiced += d.total; m.collected += d.paid; m.count++; }
+  }
+  const maxMonth = Math.max(1, ...months.map(m => m.invoiced));
 
-  const totalPaid = invoices.filter(i => i.status === 'paid').reduce((s, i) => { const sub = i.lines.reduce((ls: number, l: any) => ls + (l.qty * l.rate || 0), 0); return s + (i.taxEnabled ? sub * (1 + TAX_RATE) : sub); }, 0);
-  const totalUnpaid = invoices.filter(i => i.status === 'unpaid').reduce((s, i) => { const sub = i.lines.reduce((ls: number, l: any) => ls + (l.qty * l.rate || 0), 0); return s + (i.taxEnabled ? sub * (1 + TAX_RATE) : sub); }, 0);
+  // Top customers by amount invoiced
+  const byCustomer: Record<string, { name: string; total: number; due: number; count: number }> = {};
+  for (const d of invoices) {
+    const name = d.clientName || "No customer";
+    const c = (byCustomer[name] ||= { name, total: 0, due: 0, count: 0 });
+    c.total += d.total; c.due += d.total - d.paid; c.count++;
+  }
+  const topCustomers = Object.values(byCustomer).sort((a, b) => b.total - a.total).slice(0, 10);
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 24 }}>
         {[
-          { label: "Total Invoices", value: invoices.length, icon: "🧾" },
-          { label: "Total Paid", value: formatCurrency(totalPaid), icon: "✅" },
-          { label: "Outstanding", value: formatCurrency(totalUnpaid), icon: "⏳" },
+          { label: "Total Invoiced", value: formatCurrency(invoiced), icon: "🧾" },
+          { label: "Collected", value: formatCurrency(collected), icon: "✅" },
+          { label: "Balance Due", value: formatCurrency(invoiced - collected), icon: "⏳" },
+          { label: "Overdue", value: formatCurrency(overdueAmt), icon: "⚠️" },
+          { label: `Open Estimates (${openEstimates.length})`, value: formatCurrency(openEstimates.reduce((s, d) => s + d.total, 0)), icon: "📋" },
         ].map((s, i) => (
           <div key={i} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "18px 20px" }}>
             <div style={{ fontSize: 22, marginBottom: 6 }}>{s.icon}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{s.value}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: TEXT, fontFamily: "monospace" }}>{s.value}</div>
             <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-        <button onClick={() => setEditing(defaultInvoice())} style={{ ...btn("primary"), fontSize: 14, padding: "10px 20px" }}>+ New Invoice</button>
-      </div>
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, overflow: "hidden" }}>
-        {loading ? (
-          <div style={{ padding: 60, textAlign: "center", color: MUTED }}>Loading...</div>
-        ) : invoices.length === 0 ? (
-          <div style={{ padding: 60, textAlign: "center", color: MUTED }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🧾</div>
-            <div style={{ fontWeight: 600, color: TEXT, marginBottom: 6 }}>No invoices yet</div>
-            <div style={{ fontSize: 13 }}>Convert an estimate to an invoice or create one manually</div>
-          </div>
+
+      <Section title="Invoiced by Month (last 12 months)">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {months.map(m => (
+            <div key={m.key} style={{ display: "grid", gridTemplateColumns: "80px 1fr 110px", gap: 12, alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: MUTED }}>{m.label}</div>
+              <div style={{ background: BG, borderRadius: 6, height: 18, position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", inset: 0, width: `${(m.invoiced / maxMonth) * 100}%`, background: PRIMARY, borderRadius: 6 }} />
+                <div style={{ position: "absolute", inset: 0, width: `${(m.collected / maxMonth) * 100}%`, background: ACCENT, borderRadius: 6 }} />
+              </div>
+              <div style={{ fontSize: 13, color: TEXT, fontFamily: "monospace", textAlign: "right" }}>{formatCurrency(m.invoiced)}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 12, color: MUTED }}>
+          <span><span style={{ display: "inline-block", width: 10, height: 10, background: ACCENT, borderRadius: 2, marginRight: 6 }} />Collected</span>
+          <span><span style={{ display: "inline-block", width: 10, height: 10, background: PRIMARY, border: `1px solid ${BORDER}`, borderRadius: 2, marginRight: 6 }} />Invoiced</span>
+        </div>
+      </Section>
+
+      <Section title="Top Customers">
+        {topCustomers.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: MUTED, fontSize: 13 }}>No invoices yet.</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
-                {["Number","Client","Issue Date","Due Date","Total","Status",""].map((h, i) => (
-                  <th key={i} style={{ padding: "10px 16px", textAlign: i >= 4 ? "right" : "left", fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map(inv => {
-                const sub = inv.lines.reduce((s: number, l: any) => s + (l.qty * l.rate || 0), 0);
-                const tot = inv.taxEnabled ? sub * (1 + TAX_RATE) : sub;
-                return (
-                  <tr key={inv.id} style={{ borderBottom: `1px solid ${BG}` }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = BG}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}>
-                    <td style={{ padding: "14px 16px", fontWeight: 700, color: ACCENT, fontSize: 13 }}>{inv.number}</td>
-                    <td style={{ padding: "14px 16px" }}>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: TEXT }}>{inv.clientName || <span style={{ color: MUTED }}>No client</span>}</div>
-                      {inv.clientEmail && <div style={{ fontSize: 11, color: MUTED }}>{inv.clientEmail}</div>}
-                    </td>
-                    <td style={{ padding: "14px 16px", fontSize: 13, color: MUTED }}>{formatDate(inv.issueDate)}</td>
-                    <td style={{ padding: "14px 16px", fontSize: 13, color: MUTED }}>{formatDate(inv.dueDate)}</td>
-                    <td style={{ padding: "14px 16px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", fontSize: 14, color: TEXT }}>{formatCurrency(tot)}</td>
-                    <td style={{ padding: "14px 16px", textAlign: "right" }}><Badge status={inv.status} /></td>
-                    <td style={{ padding: "14px 16px", textAlign: "right", display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      {inv.status === 'unpaid' && (
-                        <button onClick={() => markPaid(inv.id)} style={{ ...btn("green"), padding: "4px 10px", fontSize: 12 }}>Mark Paid</button>
-                      )}
-                      <button onClick={() => handleDelete(inv.id)} style={{ ...btn("danger"), padding: "4px 10px", fontSize: 12 }}>Delete</button>
-                    </td>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${BORDER}` }}>
+                  {["Customer", "Invoices", "Total", "Balance Due"].map((h, i) => (
+                    <th key={h} style={{ padding: "8px 10px", textAlign: i === 0 ? "left" : "right", fontSize: 11, color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {topCustomers.map(c => (
+                  <tr key={c.name} style={{ borderBottom: `1px solid ${BG}` }}>
+                    <td style={{ padding: "10px", fontSize: 14, color: TEXT, fontWeight: 600 }}>{c.name}</td>
+                    <td style={{ padding: "10px", fontSize: 13, color: MUTED, textAlign: "right" }}>{c.count}</td>
+                    <td style={{ padding: "10px", fontSize: 13, color: TEXT, textAlign: "right", fontFamily: "monospace" }}>{formatCurrency(c.total)}</td>
+                    <td style={{ padding: "10px", fontSize: 13, color: c.due > 0 ? ACCENT : MUTED, textAlign: "right", fontFamily: "monospace" }}>{formatCurrency(c.due)}</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </Section>
     </div>
   );
 }
@@ -709,9 +996,12 @@ function AdminTab() {
   );
 }
 
+type Tab = "documents" | "customers" | "reports" | "admin";
+
 export default function App() {
-  const [tab, setTab] = useState<"estimates" | "clients" | "invoices" | "admin">("estimates");
+  const [tab, setTab] = useState<Tab>("documents");
   const [editingEstimate, setEditingEstimate] = useState<any>(null);
+  const [editingInvoice, setEditingInvoice] = useState<any>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [userEmail, setUserEmail] = useState("");
 
@@ -733,43 +1023,64 @@ export default function App() {
   );
 
   if (editingEstimate) return (
-    <EstimateEditor estimate={editingEstimate} onSave={() => { setEditingEstimate(null); setTab("estimates"); }} onCancel={() => setEditingEstimate(null)} />
+    <EstimateEditor estimate={editingEstimate} onSave={() => { setEditingEstimate(null); setTab("documents"); }} onCancel={() => setEditingEstimate(null)} />
   );
+
+  if (editingInvoice) return (
+    <InvoiceEditor invoice={editingInvoice} onDone={() => { setEditingInvoice(null); setTab("documents"); }} />
+  );
+
+  const createLinks = [
+    { label: "Invoice", onClick: () => setEditingInvoice(defaultInvoice()) },
+    { label: "Estimate", onClick: () => setEditingEstimate(defaultEstimate()) },
+    { label: "Customer", onClick: () => setTab("customers") },
+  ];
 
   return (
     <div style={{ background: BG, minHeight: "100vh", fontFamily: "'Segoe UI', sans-serif", color: TEXT }}>
-      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <Image src="/logo.png" alt="Gumers Landscaping" width={44} height={44} style={{ borderRadius: 10, objectFit: "contain" }} />
+          <Image src="/logo.png" alt="CotizaFlow" width={44} height={44} style={{ borderRadius: 10, objectFit: "contain" }} />
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: TEXT }}>Gumers Landscaping</div>
-            <div style={{ fontSize: 11, color: ACCENT, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Business Manager</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: TEXT }}>CotizaFlow</div>
+            <div style={{ fontSize: 11, color: ACCENT, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{userEmail}</div>
           </div>
         </div>
-        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ ...btn("ghost"), fontSize: 12 }}>Sign Out</button>
+        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ ...btn("ghost"), fontSize: 12, whiteSpace: "nowrap" }}>Sign Out</button>
       </div>
 
-      <div style={{ background: CARD, borderBottom: `1px solid ${BORDER}`, padding: "0 32px", display: "flex", gap: 4 }}>
-        {[
-          { key: "estimates", label: "📋 Estimates" },
-          { key: "clients",   label: "👥 Clients" },
-          { key: "invoices",  label: "🧾 Invoices" },
-          ...(isAdmin ? [{ key: "admin", label: "🛡️ Admin" }] : []),
-        ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key as any)} style={{
-            background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
-            padding: "14px 20px", fontSize: 14, fontWeight: tab === t.key ? 700 : 500,
-            color: tab === t.key ? ACCENT : MUTED,
-            borderBottom: tab === t.key ? `2px solid ${ACCENT}` : "2px solid transparent",
-            marginBottom: -1, transition: "all 0.15s"
-          }}>{t.label}</button>
-        ))}
-      </div>
+      <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 16px 48px" }}>
+        {/* Create bar: green + then document types, like InvoiceHome */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
+          <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#22c55e", color: "#000", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, lineHeight: 1 }}>+</span>
+          {createLinks.map((l, i) => (
+            <span key={l.label} style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+              {i > 0 && <span style={{ color: BORDER }}>·</span>}
+              <button onClick={l.onClick} style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", color: ACCENT, fontSize: 16, fontWeight: 700, padding: 0 }}>{l.label}</button>
+            </span>
+          ))}
+        </div>
 
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "32px 24px" }}>
-        {tab === "estimates" && <EstimatesTab onEdit={setEditingEstimate} />}
-        {tab === "clients" && <ClientsTab />}
-        {tab === "invoices" && <InvoicesTab />}
+        {/* Main tabs */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", borderBottom: `1px solid ${BORDER}`, marginBottom: 20 }}>
+          {([
+            { key: "documents", label: "📄 My Documents" },
+            { key: "customers", label: "👥 My Customers" },
+            { key: "reports",   label: "📊 My Reports" },
+            ...(isAdmin ? [{ key: "admin", label: "🛡️ Admin" }] : []),
+          ] as { key: Tab; label: string }[]).map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              background: tab === t.key ? CARD : "transparent", cursor: "pointer", fontFamily: "inherit",
+              border: `1px solid ${tab === t.key ? BORDER : "transparent"}`, borderBottom: tab === t.key ? `2px solid ${ACCENT}` : "2px solid transparent",
+              borderRadius: "8px 8px 0 0", padding: "10px 16px", fontSize: 14, fontWeight: tab === t.key ? 700 : 500,
+              color: tab === t.key ? ACCENT : MUTED, marginBottom: -1,
+            }}>{t.label}</button>
+          ))}
+        </div>
+
+        {tab === "documents" && <DocumentsTab onEditEstimate={setEditingEstimate} onEditInvoice={setEditingInvoice} />}
+        {tab === "customers" && <ClientsTab />}
+        {tab === "reports" && <ReportsTab />}
         {tab === "admin" && isAdmin && <AdminTab />}
       </div>
     </div>
