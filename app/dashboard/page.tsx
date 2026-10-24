@@ -1067,6 +1067,38 @@ function AdminTab() {
   );
 }
 
+// Shows iPhone/iPad users how to put CotizaFlow on their home screen, until they do it or close the tip.
+function InstallTip() {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+    let dismissed = false;
+    try { dismissed = localStorage.getItem("cf-install-tip-dismissed") === "1"; } catch { /* storage blocked */ }
+    setShow(isIOS && !standalone && !dismissed);
+  }, []);
+
+  if (!show) return null;
+
+  const close = () => {
+    setShow(false);
+    try { localStorage.setItem("cf-install-tip-dismissed", "1"); } catch { /* storage blocked */ }
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, background: CARD, border: `1px solid ${ACCENT}55`, borderRadius: 12, padding: "12px 14px", marginBottom: 20 }}>
+      <Image src="/apple-touch-icon.png" alt="" width={40} height={40} style={{ borderRadius: 9 }} />
+      <div style={{ flex: 1, fontSize: 13, color: TEXT, lineHeight: 1.45 }}>
+        <strong>Install CotizaFlow on your iPhone.</strong>{" "}
+        <span style={{ color: MUTED }}>In Safari, tap the Share button <span style={{ whiteSpace: "nowrap" }}>(□↑)</span>, then <strong style={{ color: TEXT }}>Add to Home Screen</strong>.</span>
+      </div>
+      <button onClick={close} aria-label="Close" style={{ background: "none", border: "none", color: MUTED, fontSize: 20, cursor: "pointer", padding: 4 }}>×</button>
+    </div>
+  );
+}
+
 type Tab = "documents" | "customers" | "reports" | "admin";
 
 export default function App() {
@@ -1121,6 +1153,8 @@ export default function App() {
       </div>
 
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 16px 48px" }}>
+        <InstallTip />
+
         {/* Create bar: green + then document types, like InvoiceHome */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
           <span style={{ width: 30, height: 30, borderRadius: "50%", background: "#22c55e", color: "#000", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, lineHeight: 1 }}>+</span>

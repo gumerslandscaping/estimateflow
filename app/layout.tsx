@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -23,6 +23,25 @@ export const metadata: Metadata = {
     siteName: "CotizaFlow",
     type: "website",
   },
+  applicationName: "CotizaFlow",
+  appleWebApp: {
+    capable: true,
+    title: "CotizaFlow",
+    statusBarStyle: "black",
+  },
+  icons: {
+    icon: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  // Older iPhones only open full screen from the home screen with this tag.
+  other: { "apple-mobile-web-app-capable": "yes" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0d1f0d",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
