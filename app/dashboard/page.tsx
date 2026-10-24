@@ -180,8 +180,9 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
   const removeLine = (id: string) => upd("lines", est.lines.filter((l: any) => l.id !== id));
   const updateLine = (id: string, updated: any) => upd("lines", est.lines.map((l: any) => l.id === id ? updated : l));
 
-  const handleSave = async (status: string) => {
+  const handleSave = async (status: string, stay = false): Promise<boolean> => {
     setSaving(true);
+    let ok = false;
     try {
       const { error: estError } = await supabase.from('estimates').upsert({
         id: est.id, number: est.number, status,
@@ -194,9 +195,15 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
         est.lines.map((l: any, i: number) => ({ estimate_id: est.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, sort_order: i }))
       );
       if (linesError) throw linesError;
-      onSave({ ...est, status });
+      ok = true;
+      if (!stay) onSave({ ...est, status });
     } catch (err) { alert('Error saving.'); console.error(err); }
     setSaving(false);
+    return ok;
+  };
+
+  const openPdf = async () => {
+    if (await handleSave(est.status, true)) window.location.href = `/doc?kind=estimate&id=${est.id}`;
   };
 
   const handleEmail = async () => {
@@ -263,6 +270,7 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button onClick={onCancel} style={btn("ghost")}>Discard</button>
           <button onClick={() => handleSave("draft")} disabled={saving} style={btn("secondary")}>{saving ? "Saving..." : "Save Draft"}</button>
+          <button onClick={openPdf} disabled={saving} style={btn("green")}>📄 PDF / Print</button>
           <button onClick={convertToInvoice} style={btn("green")}>🧾 Convert to Invoice</button>
           <button onClick={handleEmail} disabled={sending} style={btn("green")}>📧 {sending ? "Sending..." : "Email"}</button>
           <button onClick={handleSMS} disabled={sending} style={btn("primary")}>💬 {sending ? "Sending..." : "Text"}</button>
@@ -347,8 +355,9 @@ function InvoiceEditor({ invoice, onDone }: { invoice: any; onDone: () => void }
   const removeLine = (id: string) => upd("lines", inv.lines.filter((l: any) => l.id !== id));
   const updateLine = (id: string, updated: any) => upd("lines", inv.lines.map((l: any) => l.id === id ? updated : l));
 
-  const handleSave = async (status: string) => {
+  const handleSave = async (status: string, stay = false): Promise<boolean> => {
     setSaving(true);
+    let ok = false;
     try {
       const { error: invError } = await supabase.from('invoices').upsert({
         id: inv.id, number: inv.number, status,
@@ -361,9 +370,15 @@ function InvoiceEditor({ invoice, onDone }: { invoice: any; onDone: () => void }
         inv.lines.map((l: any, i: number) => ({ invoice_id: inv.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, sort_order: i }))
       );
       if (linesError) throw linesError;
-      onDone();
+      ok = true;
+      if (!stay) onDone();
     } catch (err) { alert('Error saving.'); console.error(err); }
     setSaving(false);
+    return ok;
+  };
+
+  const openPdf = async () => {
+    if (await handleSave(inv.status, true)) window.location.href = `/doc?kind=invoice&id=${inv.id}`;
   };
 
   const isPaid = inv.status === "paid";
@@ -383,6 +398,7 @@ function InvoiceEditor({ invoice, onDone }: { invoice: any; onDone: () => void }
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button onClick={onDone} style={btn("ghost")}>Discard</button>
           <button onClick={() => handleSave(inv.status)} disabled={saving} style={btn("secondary")}>{saving ? "Saving..." : "Save"}</button>
+          <button onClick={openPdf} disabled={saving} style={btn("green")}>📄 PDF / Print</button>
           {isPaid
             ? <button onClick={() => handleSave("unpaid")} disabled={saving} style={btn("ghost")}>Mark Unpaid</button>
             : <button onClick={() => handleSave("paid")} disabled={saving} style={btn("primary")}>✓ Save & Mark Paid</button>}
@@ -668,6 +684,7 @@ function DocumentsTab({ onEditEstimate, onEditInvoice }: { onEditEstimate: (e: a
                     </td>
                     <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 700, fontFamily: "monospace", fontSize: 14, color: TEXT }}>{formatCurrency(d.total)}</td>
                     <td style={{ padding: "12px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
+                      <a href={`/doc?kind=${d.kind}&id=${d.id}`} onClick={e => e.stopPropagation()} style={{ ...btn("ghost"), padding: "4px 10px", fontSize: 12, textDecoration: "none", marginRight: 6 }}>📄 PDF</a>
                       {d.kind === "invoice" && (d.status === "paid"
                         ? <button onClick={e => { e.stopPropagation(); setPaid(d, false); }} style={{ ...btn("ghost"), padding: "4px 10px", fontSize: 12 }}>Undo Paid</button>
                         : <button onClick={e => { e.stopPropagation(); setPaid(d, true); }} style={{ ...btn("green"), padding: "4px 10px", fontSize: 12 }}>✓ Mark Paid</button>)}
