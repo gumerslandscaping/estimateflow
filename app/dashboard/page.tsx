@@ -48,7 +48,7 @@ const emptyLine = () => ({ id: generateId(), description: "", qty: 1, unit: "hr"
 
 const defaultEstimate = () => ({
   id: generateId(),
-  number: `EST-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+  number: "",
   status: "draft",
   clientName: "",
   clientEmail: "",
@@ -63,7 +63,7 @@ const defaultEstimate = () => ({
 
 const defaultInvoice = () => ({
   id: generateId(),
-  number: `INV-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+  number: "",
   status: "unpaid",
   clientName: "",
   clientEmail: "",
@@ -75,6 +75,46 @@ const defaultInvoice = () => ({
   taxEnabled: true,
   createdAt: new Date().toISOString(),
 });
+
+// ---------- Document numbers: INV-1, INV-2… / EST-1, EST-2… ----------
+// The last number used is kept on the user's account, so each account counts on its own.
+
+type DocKind = "invoice" | "estimate";
+const NUMBER_KEY: Record<DocKind, string> = { invoice: "lastInvoiceNumber", estimate: "lastEstimateNumber" };
+const NUMBER_PREFIX: Record<DocKind, string> = { invoice: "INV", estimate: "EST" };
+
+function numberValue(number: string): number {
+  const m = (number || "").match(/(\d+)\s*$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+async function nextNumber(kind: DocKind): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const last = Number(user?.user_metadata?.[NUMBER_KEY[kind]]) || 0;
+  return `${NUMBER_PREFIX[kind]}-${last + 1}`;
+}
+
+// New documents set the counter to their number (so typing 100 makes the next one 101).
+// Edits to existing documents only ever move the counter up.
+async function recordNumber(kind: DocKind, number: string, isNew: boolean) {
+  const n = numberValue(number);
+  if (!n) return;
+  const { data: { user } } = await supabase.auth.getUser();
+  const last = Number(user?.user_metadata?.[NUMBER_KEY[kind]]) || 0;
+  if (isNew ? n !== last : n > last) await supabase.auth.updateUser({ data: { [NUMBER_KEY[kind]]: n } });
+}
+
+async function numberTaken(kind: DocKind, number: string, id: string): Promise<boolean> {
+  const { data } = await supabase.from(kind === "invoice" ? "invoices" : "estimates").select("id").eq("number", number).neq("id", id).limit(1);
+  return !!data && data.length > 0;
+}
+
+function NumberInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input value={value} onChange={e => onChange(e.target.value)} title="Tap to change the number"
+      style={{ background: "transparent", border: `1px dashed ${BORDER}`, borderRadius: 6, color: TEXT, fontSize: 18, fontWeight: 700, fontFamily: "inherit", padding: "2px 8px", width: 130, outline: "none" }} />
+  );
+}
 
 function Badge({ status }: { status: string }) {
   const m = STATUS_META[status] || STATUS_META.draft;
@@ -181,11 +221,14 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
   const updateLine = (id: string, updated: any) => upd("lines", est.lines.map((l: any) => l.id === id ? updated : l));
 
   const handleSave = async (status: string, stay = false): Promise<boolean> => {
+    const number = (est.number || "").trim();
+    if (!number) { alert('Give this estimate a number.'); return false; }
     setSaving(true);
     let ok = false;
     try {
+      if (await numberTaken("estimate", number, est.id)) { alert(`${number} is already used by another estimate. Pick a different number.`); setSaving(false); return false; }
       const { error: estError } = await supabase.from('estimates').upsert({
-        id: est.id, number: est.number, status,
+        id: est.id, number, status,
         client_name: est.clientName, client_email: est.clientEmail, client_phone: est.clientPhone,
         issue_date: est.issueDate, expiry_date: est.expiryDate, notes: est.notes, tax_enabled: est.taxEnabled,
       });
@@ -195,8 +238,10 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
         est.lines.map((l: any, i: number) => ({ estimate_id: est.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, sort_order: i }))
       );
       if (linesError) throw linesError;
+      await recordNumber("estimate", number, !!est.isNew);
+      if (est.isNew) setEst((p: any) => ({ ...p, isNew: false }));
       ok = true;
-      if (!stay) onSave({ ...est, status });
+      if (!stay) onSave({ ...est, number, status });
     } catch (err) { alert('Error saving.'); console.error(err); }
     setSaving(false);
     return ok;
@@ -231,10 +276,10 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
   };
 
   const convertToInvoice = async () => {
-    await handleSave(est.status);
+    if (!(await handleSave(est.status, true))) return;
     const inv = {
       ...defaultInvoice(),
-      number: `INV-${est.number.replace('EST-', '')}`,
+      number: await nextNumber("invoice"),
       clientName: est.clientName,
       clientEmail: est.clientEmail,
       clientPhone: est.clientPhone,
@@ -251,7 +296,11 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
       await supabase.from('invoice_lines').insert(
         inv.lines.map((l: any, i: number) => ({ invoice_id: inv.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, sort_order: i }))
       );
-      alert('Invoice created! ✅ You can find it in My Documents.');
+      await recordNumber("invoice", inv.number, true);
+      alert(`Invoice ${inv.number} created! ✅ You can find it in My Documents.`);
+      onSave({ ...est });
+    } else {
+      alert('Could not create the invoice.'); console.error(error);
     }
   };
 
@@ -262,7 +311,7 @@ function EstimateEditor({ estimate, onSave, onCancel }: { estimate: any; onSave:
           <button onClick={onCancel} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 22, padding: 0 }}>←</button>
           <Image src="/logo.png" alt="Gumers Landscaping" width={36} height={36} style={{ borderRadius: 6, objectFit: "contain" }} />
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: TEXT }}>{est.number}</div>
+            <NumberInput value={est.number} onChange={v => upd("number", v)} />
             <div style={{ fontSize: 12, color: MUTED }}>Editing estimate</div>
           </div>
           <Badge status={est.status} />
@@ -356,11 +405,14 @@ function InvoiceEditor({ invoice, onDone }: { invoice: any; onDone: () => void }
   const updateLine = (id: string, updated: any) => upd("lines", inv.lines.map((l: any) => l.id === id ? updated : l));
 
   const handleSave = async (status: string, stay = false): Promise<boolean> => {
+    const number = (inv.number || "").trim();
+    if (!number) { alert('Give this invoice a number.'); return false; }
     setSaving(true);
     let ok = false;
     try {
+      if (await numberTaken("invoice", number, inv.id)) { alert(`${number} is already used by another invoice. Pick a different number.`); setSaving(false); return false; }
       const { error: invError } = await supabase.from('invoices').upsert({
-        id: inv.id, number: inv.number, status,
+        id: inv.id, number, status,
         client_name: inv.clientName, client_email: inv.clientEmail, client_phone: inv.clientPhone,
         issue_date: inv.issueDate, due_date: inv.dueDate, notes: inv.notes, tax_enabled: inv.taxEnabled,
       });
@@ -370,6 +422,8 @@ function InvoiceEditor({ invoice, onDone }: { invoice: any; onDone: () => void }
         inv.lines.map((l: any, i: number) => ({ invoice_id: inv.id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, sort_order: i }))
       );
       if (linesError) throw linesError;
+      await recordNumber("invoice", number, !!inv.isNew);
+      if (inv.isNew) setInv((p: any) => ({ ...p, isNew: false }));
       ok = true;
       if (!stay) onDone();
     } catch (err) { alert('Error saving.'); console.error(err); }
@@ -390,7 +444,7 @@ function InvoiceEditor({ invoice, onDone }: { invoice: any; onDone: () => void }
           <button onClick={onDone} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 22, padding: 0 }}>←</button>
           <Image src="/logo.png" alt="Gumers Landscaping" width={36} height={36} style={{ borderRadius: 6, objectFit: "contain" }} />
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: TEXT }}>{inv.number}</div>
+            <NumberInput value={inv.number} onChange={v => upd("number", v)} />
             <div style={{ fontSize: 12, color: MUTED }}>Editing invoice</div>
           </div>
           <Badge status={inv.status} />
@@ -1048,8 +1102,8 @@ export default function App() {
   );
 
   const createLinks = [
-    { label: "Invoice", onClick: () => setEditingInvoice(defaultInvoice()) },
-    { label: "Estimate", onClick: () => setEditingEstimate(defaultEstimate()) },
+    { label: "Invoice", onClick: async () => setEditingInvoice({ ...defaultInvoice(), number: await nextNumber("invoice"), isNew: true }) },
+    { label: "Estimate", onClick: async () => setEditingEstimate({ ...defaultEstimate(), number: await nextNumber("estimate"), isNew: true }) },
     { label: "Customer", onClick: () => setTab("customers") },
   ];
 
