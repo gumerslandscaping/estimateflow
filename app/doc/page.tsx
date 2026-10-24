@@ -21,6 +21,31 @@ type Business = {
 
 type Line = { description: string; qty: number; unit: string; rate: number }
 
+// Per-account wording, colors and show/hide choices for the templates. Blank = template default.
+type Custom = {
+  invoiceTitle: string
+  estimateTitle: string
+  billTo: string
+  colDesc: string
+  colQty: string
+  colRate: string
+  colAmount: string
+  thankYou: string
+  footer: string
+  titleColor: string
+  lineColor: string
+  showQtyRate: boolean
+  showTerms: boolean
+  showThankYou: boolean
+  showPaidStamp: boolean
+}
+
+const DEFAULT_CUSTOM: Custom = {
+  invoiceTitle: '', estimateTitle: '', billTo: '', colDesc: '', colQty: '', colRate: '', colAmount: '',
+  thankYou: '', footer: '', titleColor: '', lineColor: '',
+  showQtyRate: true, showTerms: true, showThankYou: true, showPaidStamp: true,
+}
+
 type DocData = {
   kind: Kind
   id: string
@@ -139,11 +164,22 @@ function pdfOptions(filename: string) {
 
 // ---------- The printable sheet ----------
 
-function Sheet({ doc, biz, tpl }: { doc: DocData; biz: Business; tpl: TemplateKey }) {
-  const t = TEMPLATES[tpl]
+function Sheet({ doc, biz, tpl, custom }: { doc: DocData; biz: Business; tpl: TemplateKey; custom: Custom }) {
+  const base = TEMPLATES[tpl]
+  const t = {
+    ...base,
+    title: custom.titleColor || base.title,
+    rule: custom.lineColor || base.rule,
+    headBg: custom.lineColor && base.headBg !== '#ffffff' && base.headBg !== '#f3f4f6' ? custom.lineColor : base.headBg,
+    band: base.band && custom.lineColor ? custom.lineColor : base.band,
+  }
   const { subtotal, tax, total, paid, due } = totals(doc)
-  const title = doc.kind === 'invoice' ? 'INVOICE' : 'ESTIMATE'
-  const isPaid = doc.kind === 'invoice' && doc.status === 'paid'
+  const title = doc.kind === 'invoice' ? (custom.invoiceTitle || 'INVOICE') : (custom.estimateTitle || 'ESTIMATE')
+  const isPaid = doc.kind === 'invoice' && doc.status === 'paid' && custom.showPaidStamp
+  const cols = custom.showQtyRate
+    ? [custom.colDesc || 'Description', custom.colQty || 'Qty', custom.colRate || 'Rate', custom.colAmount || 'Amount']
+    : [custom.colDesc || 'Description', custom.colAmount || 'Amount']
+  const terms = custom.showTerms ? biz.terms : ''
   const label: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280', marginBottom: 4 }
 
   const bizBlock = (color: string, muted: string) => (
@@ -186,7 +222,7 @@ function Sheet({ doc, biz, tpl }: { doc: DocData; biz: Business; tpl: TemplateKe
         {/* Bill to + meta */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 32, marginBottom: 32 }}>
           <div style={{ lineHeight: 1.55 }}>
-            <div style={label}>{doc.kind === 'invoice' ? 'Bill To' : 'Prepared For'}</div>
+            <div style={label}>{custom.billTo || (doc.kind === 'invoice' ? 'Bill To' : 'Prepared For')}</div>
             <div style={{ fontSize: 15, fontWeight: 700 }}>{doc.clientName || '—'}</div>
             {doc.clientAddress && <div style={{ fontSize: 13, color: '#4b5563' }}>{doc.clientAddress}</div>}
             {doc.clientEmail && <div style={{ fontSize: 13, color: '#4b5563' }}>{doc.clientEmail}</div>}
@@ -212,8 +248,8 @@ function Sheet({ doc, biz, tpl }: { doc: DocData; biz: Business; tpl: TemplateKe
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: t.headBg, borderTop: `2px solid ${t.rule}`, borderBottom: `2px solid ${t.rule}` }}>
-              {['Description', 'Qty', 'Rate', 'Amount'].map((h, i) => (
-                <th key={h} style={{ padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right', color: t.headText, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{h}</th>
+              {cols.map((h, i) => (
+                <th key={i} style={{ padding: '10px 12px', textAlign: i === 0 ? 'left' : 'right', color: t.headText, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -221,8 +257,8 @@ function Sheet({ doc, biz, tpl }: { doc: DocData; biz: Business; tpl: TemplateKe
             {doc.lines.map((l, i) => (
               <tr key={i} style={{ background: i % 2 ? t.zebra : '#ffffff', borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '10px 12px' }}>{l.description || '—'}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>{l.qty} {l.unit && l.unit !== 'flat' ? l.unit : ''}</td>
-                <td style={{ padding: '10px 12px', textAlign: 'right' }}>{money(Number(l.rate))}</td>
+                {custom.showQtyRate && <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>{l.qty} {l.unit && l.unit !== 'flat' ? l.unit : ''}</td>}
+                {custom.showQtyRate && <td style={{ padding: '10px 12px', textAlign: 'right' }}>{money(Number(l.rate))}</td>}
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{money(Number(l.qty) * Number(l.rate))}</td>
               </tr>
             ))}
@@ -261,7 +297,7 @@ function Sheet({ doc, biz, tpl }: { doc: DocData; biz: Business; tpl: TemplateKe
         </div>
 
         {/* Notes & terms */}
-        {(doc.notes || biz.terms) && (
+        {(doc.notes || terms) && (
           <div style={{ marginTop: 36, display: 'grid', gap: 16 }}>
             {doc.notes && (
               <div>
@@ -269,22 +305,30 @@ function Sheet({ doc, biz, tpl }: { doc: DocData; biz: Business; tpl: TemplateKe
                 <div style={{ fontSize: 12.5, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{doc.notes}</div>
               </div>
             )}
-            {biz.terms && (
+            {terms && (
               <div>
                 <div style={label}>Terms & Conditions</div>
-                <div style={{ fontSize: 12, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{biz.terms}</div>
+                <div style={{ fontSize: 12, color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{terms}</div>
               </div>
             )}
           </div>
         )}
 
-        <div style={{
-          marginTop: 40, fontSize: tpl === 'classic' ? 30 : 16, color: t.title === '#f5a623' ? '#1a4a1a' : t.title,
-          fontFamily: tpl === 'classic' ? "'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive" : undefined,
-          fontWeight: tpl === 'classic' ? 400 : 700,
-        }}>
-          Thank you for your business!
-        </div>
+        {custom.showThankYou && (
+          <div style={{
+            marginTop: 40, fontSize: tpl === 'classic' ? 30 : 16, color: t.title === '#f5a623' ? '#1a4a1a' : t.title,
+            fontFamily: tpl === 'classic' ? "'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive" : undefined,
+            fontWeight: tpl === 'classic' ? 400 : 700,
+          }}>
+            {custom.thankYou || 'Thank you for your business!'}
+          </div>
+        )}
+
+        {custom.footer && (
+          <div style={{ marginTop: 28, paddingTop: 12, borderTop: `1px solid #e5e7eb`, fontSize: 11.5, color: '#6b7280', textAlign: 'center', whiteSpace: 'pre-wrap' }}>
+            {custom.footer}
+          </div>
+        )}
       </div>
 
     </div>
@@ -309,6 +353,9 @@ export default function DocumentPage() {
   const [error, setError] = useState('')
   const [biz, setBiz] = useState<Business>(EMPTY_BUSINESS)
   const [tpl, setTpl] = useState<TemplateKey>('classic')
+  const [custom, setCustom] = useState<Custom>(DEFAULT_CUSTOM)
+  const [userId, setUserId] = useState('')
+  const [uploading, setUploading] = useState(false)
   const [showBiz, setShowBiz] = useState(false)
   const [savingBiz, setSavingBiz] = useState(false)
   const [busy, setBusy] = useState('')
@@ -332,6 +379,8 @@ export default function DocumentPage() {
       const startBiz = savedBiz ? { ...EMPTY_BUSINESS, ...savedBiz } : (user.email === OWNER_EMAIL ? OWNER_DEFAULT : EMPTY_BUSINESS)
       setBiz(startBiz)
       if (meta.template && meta.template in TEMPLATES) setTpl(meta.template)
+      if (meta.custom) setCustom({ ...DEFAULT_CUSTOM, ...meta.custom })
+      setUserId(user.id)
       if (!startBiz.name) setShowBiz(true)
 
       const table = kind === 'invoice' ? 'invoices' : 'estimates'
@@ -364,15 +413,41 @@ export default function DocumentPage() {
     })()
   }, [])
 
-  const saveSettings = async (nextBiz: Business, nextTpl: TemplateKey) => {
+  const saveSettings = async (nextBiz: Business, nextTpl: TemplateKey, nextCustom: Custom = custom) => {
     setSavingBiz(true)
-    const { error } = await supabase.auth.updateUser({ data: { business: nextBiz, template: nextTpl } })
+    const { error } = await supabase.auth.updateUser({ data: { business: nextBiz, template: nextTpl, custom: nextCustom } })
     setSavingBiz(false)
     if (error) { alert('Could not save. Try again.'); return false }
     return true
   }
 
   const chooseTemplate = (k: TemplateKey) => { setTpl(k); saveSettings(biz, k) }
+
+  // Shrink the picture in the browser, then store it in the public "logos" bucket under the user's id.
+  const uploadLogo = async (file: File) => {
+    if (!file.type.startsWith('image/')) { alert('Pick an image file (PNG or JPG).'); return }
+    setUploading(true)
+    try {
+      const bitmap = await createImageBitmap(file)
+      const scale = Math.min(1, 400 / Math.max(bitmap.width, bitmap.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(bitmap.width * scale)
+      canvas.height = Math.round(bitmap.height * scale)
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      const blob: Blob = await new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('resize failed')), 'image/png'))
+      const path = `${userId}/logo-${Date.now()}.png`
+      const { error } = await supabase.storage.from('logos').upload(path, blob, { contentType: 'image/png', upsert: true })
+      if (error) throw error
+      const { data } = supabase.storage.from('logos').getPublicUrl(path)
+      const nextBiz = { ...biz, logoUrl: data.publicUrl }
+      setBiz(nextBiz)
+      await saveSettings(nextBiz, tpl)
+    } catch (err) {
+      console.error(err)
+      alert("Couldn't upload the logo. Logo uploads need a one-time setup in Supabase (a public \"logos\" storage bucket). Until then, paste a link to your logo instead.")
+    }
+    setUploading(false)
+  }
 
   const filename = doc ? `${doc.number || doc.kind}.pdf` : 'document.pdf'
 
@@ -456,7 +531,7 @@ export default function DocumentPage() {
           <select value={tpl} onChange={e => chooseTemplate(e.target.value as TemplateKey)} style={{ ...inputStyle, width: 'auto', padding: '8px 10px' }}>
             {(Object.keys(TEMPLATES) as TemplateKey[]).map(k => <option key={k} value={k}>{TEMPLATES[k].label}</option>)}
           </select>
-          <button onClick={() => setShowBiz(s => !s)} style={uiBtn()}>🏢 Business Info</button>
+          <button onClick={() => setShowBiz(s => !s)} style={uiBtn()}>🎨 Customize</button>
           <button onClick={() => window.print()} style={uiBtn('green')}>🖨️ Print</button>
           <button onClick={downloadPdf} disabled={!!busy} style={uiBtn('green')}>{busy === 'pdf' ? 'Making PDF…' : '⬇️ Download PDF'}</button>
           <button onClick={() => setEmailOpen(true)} disabled={!!busy} style={uiBtn('primary')}>📧 Email PDF</button>
@@ -468,7 +543,7 @@ export default function DocumentPage() {
         <div className="cf-noprint" style={{ maxWidth: 816, margin: '20px auto 0', padding: '0 16px' }}>
           <div style={{ background: UI.card, border: `1px solid ${UI.border}`, borderRadius: 12, padding: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: UI.accent, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Your Business Info</div>
-            <div style={{ fontSize: 12, color: UI.muted, marginBottom: 14 }}>Shows at the top of every invoice and estimate. Saved to your account.</div>
+            <div style={{ fontSize: 12, color: UI.muted, marginBottom: 14 }}>Everything here shows on all your invoices and estimates and is saved to your account. The page updates as you type; hit Save to keep it.</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
               {bizField('name', 'Business Name', 'Your Landscaping Co.')}
               {bizField('phone', 'Phone', '555-555-5555')}
@@ -479,9 +554,80 @@ export default function DocumentPage() {
               {bizField('logoUrl', 'Logo Image Link (optional)', 'https://…/logo.png')}
             </div>
             <div style={{ marginTop: 10 }}>{bizField('terms', 'Terms & Conditions', 'Payment due within 30 days…')}</div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+
+            {/* Logo */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: UI.accent, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '22px 0 8px' }}>Logo</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {biz.logoUrl
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={biz.logoUrl} alt="Logo" style={{ width: 56, height: 56, objectFit: 'contain', background: '#fff', borderRadius: 8 }} />
+                : <div style={{ width: 56, height: 56, borderRadius: 8, border: `1px dashed ${UI.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: UI.muted }}>No logo</div>}
+              <label style={{ ...uiBtn('green'), display: 'inline-block' }}>
+                {uploading ? 'Uploading…' : '⬆️ Upload Logo'}
+                <input type="file" accept="image/*" disabled={uploading} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = '' }} />
+              </label>
+              {biz.logoUrl && <button onClick={() => setBiz({ ...biz, logoUrl: '' })} style={uiBtn()}>Remove</button>}
+            </div>
+
+            {/* Wording */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: UI.accent, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '22px 0 4px' }}>Wording</div>
+            <div style={{ fontSize: 12, color: UI.muted, marginBottom: 10 }}>Leave a box empty to use the default shown in gray.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+              {([
+                ['invoiceTitle', 'Invoice Title', 'INVOICE'],
+                ['estimateTitle', 'Estimate Title', 'ESTIMATE'],
+                ['billTo', 'Customer Label', doc.kind === 'invoice' ? 'Bill To' : 'Prepared For'],
+                ['colDesc', 'Column 1', 'Description'],
+                ['colQty', 'Column 2', 'Qty'],
+                ['colRate', 'Column 3', 'Rate'],
+                ['colAmount', 'Column 4', 'Amount'],
+              ] as [keyof Custom, string, string][]).map(([k, l, ph]) => (
+                <div key={k}>
+                  <label style={{ display: 'block', fontSize: 11, color: UI.muted, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l}</label>
+                  <input value={custom[k] as string} placeholder={ph} onChange={e => setCustom({ ...custom, [k]: e.target.value })} style={inputStyle} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginTop: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: UI.muted, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Closing Line</label>
+                <input value={custom.thankYou} placeholder="Thank you for your business!" onChange={e => setCustom({ ...custom, thankYou: e.target.value })} style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: UI.muted, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Footer (bottom of page)</label>
+                <input value={custom.footer} placeholder="e.g. Licensed & insured · Free estimates" onChange={e => setCustom({ ...custom, footer: e.target.value })} style={inputStyle} />
+              </div>
+            </div>
+
+            {/* Colors & show/hide */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: UI.accent, textTransform: 'uppercase', letterSpacing: '0.1em', margin: '22px 0 8px' }}>Colors & What Shows</div>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
+              {([['titleColor', 'Title color', TEMPLATES[tpl].title], ['lineColor', 'Lines color', TEMPLATES[tpl].rule]] as [keyof Custom, string, string][]).map(([k, l, def]) => (
+                <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: UI.muted }}>
+                  <input type="color" value={(custom[k] as string) || def} onChange={e => setCustom({ ...custom, [k]: e.target.value })} style={{ width: 36, height: 28, border: 'none', background: 'none', padding: 0, cursor: 'pointer' }} />
+                  {l}
+                  {custom[k] && <button onClick={() => setCustom({ ...custom, [k]: '' })} style={{ ...uiBtn(), padding: '2px 8px', fontSize: 11 }}>default</button>}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 12 }}>
+              {([
+                ['showQtyRate', 'Show Qty & Rate columns'],
+                ['showTerms', 'Show Terms & Conditions'],
+                ['showThankYou', 'Show closing line'],
+                ['showPaidStamp', 'Show PAID stamp'],
+              ] as [keyof Custom, string][]).map(([k, l]) => (
+                <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: UI.muted, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={custom[k] as boolean} onChange={e => setCustom({ ...custom, [k]: e.target.checked })} style={{ accentColor: UI.accent }} />
+                  {l}
+                </label>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
               <button onClick={async () => { if (await saveSettings(biz, tpl)) setShowBiz(false) }} disabled={savingBiz} style={uiBtn('primary')}>{savingBiz ? 'Saving…' : 'Save'}</button>
               <button onClick={() => setShowBiz(false)} style={uiBtn()}>Close</button>
+              <button onClick={() => setCustom(DEFAULT_CUSTOM)} style={uiBtn()}>Reset wording & colors</button>
             </div>
           </div>
         </div>
@@ -490,7 +636,7 @@ export default function DocumentPage() {
       {/* The document */}
       <div className="cf-wrap" style={{ padding: '24px 16px 60px', overflowX: 'auto' }}>
         <div ref={sheetRef} style={{ width: 816, margin: '0 auto', boxShadow: '0 10px 40px rgba(0,0,0,0.45)' }} className="cf-sheet">
-          <Sheet doc={doc} biz={biz} tpl={tpl} />
+          <Sheet doc={doc} biz={biz} tpl={tpl} custom={custom} />
         </div>
       </div>
 
