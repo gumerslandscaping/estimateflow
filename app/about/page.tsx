@@ -47,7 +47,7 @@ const gumers = {
   name: 'Gumers Landscaping',
   url: 'https://gumerslandscape.com',
   telephone: '+1-224-440-6704',
-  foundingDate: '2023',
+  foundingDate: '2024',
   description: "Landscaping, hardscaping, lawn care, and snow removal serving Chicago's Northwest Suburbs.",
   address: { '@type': 'PostalAddress', addressLocality: 'Palatine', addressRegion: 'IL', postalCode: '60074', addressCountry: 'US' },
   areaServed,
@@ -114,7 +114,7 @@ export default function AboutPage() {
 
         <div style={{ display: 'grid', gap: 18, fontSize: 17, lineHeight: 1.8, color: MUTED }}>
           <p style={{ margin: 0 }}>
-            Elvis Teran is the owner of <strong style={{ color: TEXT }}>Gumers Landscaping</strong>, a landscaping company based in Palatine, Illinois, serving Chicago&apos;s Northwest Suburbs since 2023. The company provides landscaping, hardscaping, lawn care, and snow removal for homeowners and properties throughout the area.
+            Elvis Teran is the owner of <strong style={{ color: TEXT }}>Gumers Landscaping</strong>, a landscaping company based in Palatine, Illinois, serving Chicago&apos;s Northwest Suburbs since 2024. The company provides landscaping, hardscaping, lawn care, and snow removal for homeowners and properties throughout the area.
           </p>
           <p style={{ margin: 0 }}>
             Running the business day to day showed him how much time contractors lose to paperwork. Estimates were written by hand, invoices were built one at a time, and keeping track of payments took far too long. So Elvis built his own solution: <strong style={{ color: TEXT }}>CotizaFlow</strong>, estimating and invoicing software designed for landscapers and the trades.
