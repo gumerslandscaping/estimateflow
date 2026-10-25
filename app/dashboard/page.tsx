@@ -1105,21 +1105,24 @@ const TRIAL_DAYS = 14;
 const PRICE_LABEL = "$19/month";
 
 type Access = {
-  state: "owner" | "active" | "trial" | "past_due" | "locked";
+  state: "owner" | "open" | "active" | "trial" | "past_due" | "locked";
   daysLeft: number;
   status: string;
   periodEnd: string | null;
   hasCustomer: boolean;
 };
 
-function getAccess(profile: any, isAdmin: boolean): Access {
-  const status = profile?.subscription_status || "";
-  const periodEnd = profile?.subscription_period_end || null;
-  const hasCustomer = !!profile?.stripe_customer_id;
+// billing comes from /api/billing/status, which asks Stripe directly.
+function getAccess(profile: any, isAdmin: boolean, billing: any): Access {
+  const status = billing?.status || "";
+  const periodEnd = billing?.periodEnd || null;
+  const hasCustomer = !!billing?.hasCustomer;
   const created = profile?.created_at ? new Date(profile.created_at).getTime() : Date.now();
   const daysLeft = Math.max(0, Math.ceil((created + TRIAL_DAYS * 86400000 - Date.now()) / 86400000));
   const base = { daysLeft, status, periodEnd, hasCustomer };
   if (isAdmin) return { state: "owner", ...base };
+  // Billing not set up yet, or Stripe couldn't be reached: never lock anyone out.
+  if (!billing || billing.configured === false || billing.error) return { state: "open", ...base };
   if (status === "active" || status === "trialing") return { state: "active", ...base };
   if (status === "past_due") return { state: "past_due", ...base };
   if (daysLeft > 0) return { state: "trial", ...base };
@@ -1164,6 +1167,7 @@ function BillingBanner({ access, onOpen }: { access: Access; onOpen: () => void 
 function BillingTab({ access }: { access: Access }) {
   const statusText: Record<Access["state"], string> = {
     owner: "Owner account — always free",
+    open: "Free access",
     active: access.status === "trialing" ? "CotizaFlow Pro — trial, card on file" : "CotizaFlow Pro — active",
     trial: `Free trial — ${access.daysLeft} ${access.daysLeft === 1 ? "day" : "days"} left`,
     past_due: "Payment failed — please update your card",
@@ -1225,13 +1229,21 @@ export default function App() {
   const [userEmail, setUserEmail] = useState("");
   const [profile, setProfile] = useState<any>(null);
   const [billingNote, setBillingNote] = useState("");
+  const [billing, setBilling] = useState<any>(null);
 
   useEffect(() => { checkAuth(); }, []);
 
   const loadProfile = async (userId: string) => {
-    // select('*') so this keeps working before the billing columns exist
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     return data;
+  };
+
+  const loadBilling = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/billing/status', { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+      return await res.json();
+    } catch { return { error: "unavailable" }; }
   };
 
   const checkAuth = async () => {
@@ -1241,25 +1253,26 @@ export default function App() {
     if (!prof?.approved) { await supabase.auth.signOut(); window.location.href = '/login'; return; }
     setUserEmail(user.email || "");
     setProfile(prof);
+    if (user.email !== OWNER_EMAIL) setBilling(await loadBilling());
     setAuthChecked(true);
 
-    // Coming back from Stripe: Stripe tells our server a moment later, so check a few times.
-    const billing = new URLSearchParams(window.location.search).get("billing");
-    if (billing) {
+    // Coming back from Stripe checkout: confirm the subscription with Stripe.
+    const back = new URLSearchParams(window.location.search).get("billing");
+    if (back) {
       window.history.replaceState(null, "", "/dashboard");
-      if (billing === "canceled") { setBillingNote("Checkout canceled. You weren't charged."); return; }
+      if (back === "canceled") { setBillingNote("Checkout canceled. You weren't charged."); return; }
       setBillingNote("Thanks! Finishing your subscription…");
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 6; i++) {
+        const b = await loadBilling();
+        if (b?.status === "active" || b?.status === "trialing") { setBilling(b); setBillingNote("🎉 You're subscribed to CotizaFlow Pro. Thank you!"); return; }
         await new Promise(r => setTimeout(r, 2000));
-        const p = await loadProfile(user.id);
-        if (p?.subscription_status === "active" || p?.subscription_status === "trialing") { setProfile(p); setBillingNote("🎉 You're subscribed to CotizaFlow Pro. Thank you!"); return; }
       }
       setBillingNote("Payment received. Your plan will update in a minute — refresh if it doesn't.");
     }
   }
 
   const isAdmin = userEmail === OWNER_EMAIL;
-  const access = getAccess(profile, isAdmin);
+  const access = getAccess(profile, isAdmin, billing);
 
   if (!authChecked) return (
     <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: MUTED, fontFamily: "sans-serif" }}>Loading...</div>

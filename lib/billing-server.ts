@@ -1,18 +1,18 @@
 // Server-only helpers for Stripe billing. Talks to Stripe's REST API directly (no SDK needed).
+// Stripe is the source of truth: we ask it whether a user has paid, so no database columns,
+// webhooks, or extra keys are needed. Only STRIPE_SECRET_KEY has to be set in Vercel.
 import { createClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 
 export const TRIAL_DAYS = 14
 
-export function billingConfigured(): boolean {
-  return !!(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID && process.env.SUPABASE_SERVICE_ROLE_KEY)
-}
+// CotizaFlow Pro, $19/month. STRIPE_PRICE_ID in Vercel overrides it (e.g. for live mode).
+export const PRICE_ID = process.env.STRIPE_PRICE_ID || 'price_1UUF8MJ9eAMjXDXTAIGetfty'
 
-// Supabase client with the service role key: can update billing columns, bypassing row security.
-export function adminSupabase() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
+// Pinned so a Stripe-side upgrade can't change response shapes under us.
+export const STRIPE_API_VERSION = '2025-06-30.basil'
+
+export function billingConfigured(): boolean {
+  return !!process.env.STRIPE_SECRET_KEY
 }
 
 // Who is calling? Uses the Supabase access token the browser sends as "Authorization: Bearer …".
@@ -36,9 +36,6 @@ function encode(params: Record<string, any>, prefix = ''): string[] {
   return out
 }
 
-// Pinned so a Stripe-side upgrade can't change response shapes under us.
-export const STRIPE_API_VERSION = '2025-06-30.basil'
-
 export async function stripe(path: string, params?: Record<string, any>, method: 'GET' | 'POST' = 'POST', idempotencyKey?: string) {
   const body = params ? encode(params).join('&') : undefined
   const url = `https://api.stripe.com/v1/${path}${method === 'GET' && body ? `?${body}` : ''}`
@@ -48,30 +45,39 @@ export async function stripe(path: string, params?: Record<string, any>, method:
     'Stripe-Version': STRIPE_API_VERSION,
   }
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: method === 'POST' ? body : undefined,
-  })
+  const res = await fetch(url, { method, headers, body: method === 'POST' ? body : undefined })
   const json = await res.json()
   if (!res.ok) throw new Error(json?.error?.message || `Stripe error ${res.status}`)
   return json
 }
 
-// Checks the Stripe-Signature header so only real Stripe events are accepted.
-export function verifyStripeSignature(payload: string, header: string | null, secret: string, toleranceSec = 300): boolean {
-  if (!header) return false
-  const parts = Object.fromEntries(header.split(',').map(p => p.split('=') as [string, string]).filter(p => p.length === 2))
-  const signatures = header.split(',').filter(p => p.startsWith('v1=')).map(p => p.slice(3))
-  const t = Number(parts.t)
-  if (!t || !signatures.length) return false
-  if (Math.abs(Date.now() / 1000 - t) > toleranceSec) return false
-  const expected = crypto.createHmac('sha256', secret).update(`${t}.${payload}`).digest('hex')
-  return signatures.some(sig => {
-    const a = Buffer.from(sig, 'hex')
-    const b = Buffer.from(expected, 'hex')
-    return a.length === b.length && crypto.timingSafeEqual(a, b)
-  })
+// The Stripe customer for this CotizaFlow user (matched by the user id we store on the customer).
+export async function findCustomer(user: { id: string; email?: string | null }): Promise<any | null> {
+  if (!user.email) return null
+  const list = await stripe('customers', { email: user.email, limit: 10 }, 'GET')
+  const all: any[] = list.data || []
+  return all.find(c => c.metadata?.user_id === user.id) || null
+}
+
+export async function getOrCreateCustomer(user: { id: string; email?: string | null }) {
+  const existing = await findCustomer(user)
+  if (existing) return existing
+  // Idempotency key: a double-tap on Subscribe can't create two Stripe customers.
+  return stripe('customers', { email: user.email, metadata: { user_id: user.id } }, 'POST', `customer-${user.id}`)
+}
+
+// The customer's most relevant subscription: a live one if any, otherwise the most recent.
+export async function currentSubscription(customerId: string): Promise<any | null> {
+  const list = await stripe('subscriptions', { customer: customerId, status: 'all', limit: 10 }, 'GET')
+  const subs: any[] = list.data || []
+  const rank = (s: any) => (['active', 'trialing'].includes(s.status) ? 0 : s.status === 'past_due' ? 1 : 2)
+  subs.sort((a, b) => rank(a) - rank(b) || b.created - a.created)
+  return subs[0] || null
+}
+
+export function periodEnd(sub: any): string | null {
+  const ts = sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end ?? null
+  return ts ? new Date(ts * 1000).toISOString() : null
 }
 
 export function siteUrl(request: Request): string {
