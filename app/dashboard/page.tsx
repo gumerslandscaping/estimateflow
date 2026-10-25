@@ -1262,7 +1262,9 @@ export default function App() {
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { window.location.href = '/login'; return; }
+    const wantsBilling = new URLSearchParams(window.location.search).get("tab") === "billing";
+    if (!user) { window.location.href = wantsBilling ? '/login?next=billing' : '/login'; return; }
+    if (wantsBilling) { setTab("billing"); window.history.replaceState(null, "", "/dashboard"); }
     const prof = await loadProfile(user.id);
     if (!prof?.approved) { await supabase.auth.signOut(); window.location.href = '/login'; return; }
     setUserEmail(user.email || "");

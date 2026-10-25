@@ -37,7 +37,9 @@ export default function Login() {
           await supabase.auth.signOut()
           setMessage('⏳ Your account is pending approval. Please wait.')
         } else {
-          window.location.href = '/dashboard'
+          // Came from "Go Pro" on the homepage? Land on the Billing tab.
+          const next = new URLSearchParams(window.location.search).get('next')
+          window.location.href = next === 'billing' ? '/dashboard?tab=billing' : '/dashboard'
         }
       }
     }
