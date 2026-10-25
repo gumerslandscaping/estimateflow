@@ -1,14 +1,26 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 
+// Towns and counties Gumers Landscaping serves (Chicago's Northwest Suburbs).
+const TOWNS = [
+  'Palatine', 'Inverness', 'Barrington', 'South Barrington', 'Lake Barrington', 'Kildeer',
+  'Lake Zurich', 'Hoffman Estates', 'Arlington Heights', 'Rolling Meadows', 'Schaumburg',
+  'Cary', 'Crystal Lake', 'Algonquin',
+]
+const COUNTIES = ['Cook County', 'Lake County', 'McHenry County', 'Kane County']
+
 export const metadata: Metadata = {
-  title: 'Elvis Teran | Founder of CotizaFlow & Owner of Gumers Landscaping',
+  title: 'Elvis Teran | Owner of Gumers Landscaping & Founder of CotizaFlow | Palatine, IL',
   description:
-    'Elvis Teran is the owner of Gumers Landscaping in the Chicago area and the founder of CotizaFlow, estimating and invoicing software built for landscapers and the trades.',
+    "Elvis Teran is the owner of Gumers Landscaping and the founder of CotizaFlow. Based in Palatine, Illinois, serving Chicago's Northwest Suburbs, including Inverness, Barrington, Cary, Crystal Lake, and Cook, Lake, McHenry, and Kane Counties.",
+  keywords: [
+    'Elvis Teran', 'Gumers Landscaping', 'CotizaFlow', 'Palatine landscaping', 'Northwest Suburbs landscaper',
+    ...TOWNS.map(t => `${t} landscaping`), ...COUNTIES,
+  ],
   alternates: { canonical: '/about' },
   openGraph: {
-    title: 'Elvis Teran | Founder of CotizaFlow',
-    description: 'Landscaper, business owner, and founder of CotizaFlow, estimating and invoicing software for the trades.',
+    title: 'Elvis Teran | Owner of Gumers Landscaping & Founder of CotizaFlow',
+    description: "Palatine, IL business owner serving Chicago's Northwest Suburbs. Owner of Gumers Landscaping and founder of CotizaFlow.",
     url: 'https://cotizaflow.com/about',
     type: 'profile',
     images: [{ url: '/icon-512.png', width: 512, height: 512, alt: 'Gumers Landscaping logo' }],
@@ -22,24 +34,57 @@ const BORDER = '#2a4a2a'
 const TEXT = '#e8f5e8'
 const MUTED = '#8fb08f'
 
-// Tells Google who Elvis is and how he's connected to CotizaFlow and Gumers Landscaping.
+// Read by search engines only: who Elvis is, the two companies he owns, and where Gumers Landscaping works.
+const areaServed = [
+  { '@type': 'City', name: 'Chicago', containedInPlace: { '@type': 'State', name: 'Illinois' } },
+  ...TOWNS.map(name => ({ '@type': 'City', name, containedInPlace: { '@type': 'State', name: 'Illinois' } })),
+  ...COUNTIES.map(name => ({ '@type': 'AdministrativeArea', name: `${name}, Illinois` })),
+]
+
+const gumers = {
+  '@type': 'HomeAndConstructionBusiness',
+  '@id': 'https://cotizaflow.com/about#gumers-landscaping',
+  name: 'Gumers Landscaping',
+  url: 'https://gumerslandscape.com',
+  telephone: '+1-224-440-6704',
+  foundingDate: '2023',
+  description: "Landscaping, hardscaping, lawn care, and snow removal serving Chicago's Northwest Suburbs.",
+  address: { '@type': 'PostalAddress', addressLocality: 'Palatine', addressRegion: 'IL', postalCode: '60074', addressCountry: 'US' },
+  areaServed,
+  founder: { '@id': 'https://cotizaflow.com/about#elvis' },
+  knowsAbout: ['Landscaping', 'Hardscaping', 'Lawn care', 'Snow removal'],
+}
+
 const personJsonLd = {
   '@context': 'https://schema.org',
-  '@type': 'ProfilePage',
-  mainEntity: {
-    '@type': 'Person',
-    name: 'Elvis Teran',
-    alternateName: 'E',
-    jobTitle: 'Founder & Owner',
-    url: 'https://cotizaflow.com/about',
-    image: 'https://cotizaflow.com/icon-512.png',
-    homeLocation: { '@type': 'Place', name: 'Chicago, Illinois' },
-    worksFor: [
-      { '@type': 'Organization', name: 'Gumers Landscaping', url: 'https://gumerslandscape.com' },
-      { '@type': 'Organization', name: 'CotizaFlow', url: 'https://cotizaflow.com' },
-    ],
-    knowsAbout: ['Landscaping', 'Hardscaping', 'Snow removal', 'Estimating software', 'Invoicing software', 'Small business'],
-  },
+  '@graph': [
+    {
+      '@type': 'ProfilePage',
+      url: 'https://cotizaflow.com/about',
+      mainEntity: { '@id': 'https://cotizaflow.com/about#elvis' },
+    },
+    {
+      '@type': 'Person',
+      '@id': 'https://cotizaflow.com/about#elvis',
+      name: 'Elvis Teran',
+      alternateName: 'E',
+      jobTitle: 'Owner of Gumers Landscaping and Founder of CotizaFlow',
+      url: 'https://cotizaflow.com/about',
+      image: 'https://cotizaflow.com/icon-512.png',
+      homeLocation: { '@type': 'City', name: 'Palatine', containedInPlace: { '@type': 'State', name: 'Illinois' } },
+      worksFor: [{ '@id': 'https://cotizaflow.com/about#gumers-landscaping' }, { '@id': 'https://cotizaflow.com/#org' }],
+      owns: [{ '@id': 'https://cotizaflow.com/about#gumers-landscaping' }, { '@id': 'https://cotizaflow.com/#org' }],
+      knowsAbout: ['Landscaping', 'Hardscaping', 'Snow removal', 'Estimating software', 'Invoicing software', 'Small business'],
+    },
+    gumers,
+    {
+      '@type': 'Organization',
+      '@id': 'https://cotizaflow.com/#org',
+      name: 'CotizaFlow',
+      url: 'https://cotizaflow.com',
+      founder: { '@id': 'https://cotizaflow.com/about#elvis' },
+    },
+  ],
 }
 
 export default function AboutPage() {
@@ -69,7 +114,7 @@ export default function AboutPage() {
 
         <div style={{ display: 'grid', gap: 18, fontSize: 17, lineHeight: 1.8, color: MUTED }}>
           <p style={{ margin: 0 }}>
-            Elvis Teran is the owner of <strong style={{ color: TEXT }}>Gumers Landscaping</strong>, a landscaping company serving the Chicago area since 2023. The company provides landscaping, hardscaping, lawn care, and snow removal for homeowners and properties across the northwest suburbs.
+            Elvis Teran is the owner of <strong style={{ color: TEXT }}>Gumers Landscaping</strong>, a landscaping company based in Palatine, Illinois, serving Chicago&apos;s Northwest Suburbs since 2023. The company provides landscaping, hardscaping, lawn care, and snow removal for homeowners and properties throughout the area.
           </p>
           <p style={{ margin: 0 }}>
             Running the business day to day showed him how much time contractors lose to paperwork. Estimates were written by hand, invoices were built one at a time, and keeping track of payments took far too long. So Elvis built his own solution: <strong style={{ color: TEXT }}>CotizaFlow</strong>, estimating and invoicing software designed for landscapers and the trades.
@@ -78,6 +123,21 @@ export default function AboutPage() {
             With CotizaFlow, contractors can send professional estimates and invoices in minutes from their phone, turn an estimate into an invoice with one tap, and see who has paid at a glance. Elvis uses it every day at Gumers Landscaping, and he built it to help other hardworking business owners do the same.
           </p>
         </div>
+
+        <section style={{ marginTop: 40, background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 24 }}>
+          <h2 style={{ fontSize: 13, color: GOLD, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 12px' }}>
+            Gumers Landscaping Service Area
+          </h2>
+          <p style={{ fontSize: 15, lineHeight: 1.8, color: MUTED, margin: '0 0 14px' }}>
+            Based in Palatine, Illinois, Gumers Landscaping serves homeowners and properties across Chicago&apos;s Northwest Suburbs,
+            including {TOWNS.slice(0, -1).join(', ')}, and {TOWNS[TOWNS.length - 1]}, throughout {COUNTIES.slice(0, -1).join(', ')}, and {COUNTIES[COUNTIES.length - 1]}.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {TOWNS.map(t => (
+              <span key={t} style={{ fontSize: 13, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 100, padding: '5px 12px' }}>{t}, IL</span>
+            ))}
+          </div>
+        </section>
 
         <div style={{ marginTop: 40, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <a href="/#signup" style={{ background: GOLD, color: '#000', padding: '14px 26px', borderRadius: 10, fontWeight: 900, textDecoration: 'none' }}>Try CotizaFlow Free →</a>
