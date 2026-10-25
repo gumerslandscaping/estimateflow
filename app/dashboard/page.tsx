@@ -1099,7 +1099,127 @@ function InstallTip() {
   );
 }
 
-type Tab = "documents" | "customers" | "reports" | "admin";
+// ---------- Billing: 14-day free trial, then CotizaFlow Pro through Stripe ----------
+
+const TRIAL_DAYS = 14;
+const PRICE_LABEL = "$19/month";
+
+type Access = {
+  state: "owner" | "open" | "active" | "trial" | "past_due" | "locked";
+  daysLeft: number;
+  status: string;
+  periodEnd: string | null;
+  hasCustomer: boolean;
+};
+
+// billing comes from /api/billing/status, which asks Stripe directly.
+function getAccess(profile: any, isAdmin: boolean, billing: any): Access {
+  const status = billing?.status || "";
+  const periodEnd = billing?.periodEnd || null;
+  const hasCustomer = !!billing?.hasCustomer;
+  const created = profile?.created_at ? new Date(profile.created_at).getTime() : Date.now();
+  const daysLeft = Math.max(0, Math.ceil((created + TRIAL_DAYS * 86400000 - Date.now()) / 86400000));
+  const base = { daysLeft, status, periodEnd, hasCustomer };
+  if (isAdmin) return { state: "owner", ...base };
+  // Billing not set up yet, or Stripe couldn't be reached: never lock anyone out.
+  if (!billing || billing.configured === false || billing.error) return { state: "open", ...base };
+  if (status === "active" || status === "trialing") return { state: "active", ...base };
+  if (status === "past_due") return { state: "past_due", ...base };
+  if (daysLeft > 0) return { state: "trial", ...base };
+  return { state: "locked", ...base };
+}
+
+// Asks our server for a Stripe page (checkout or billing management) and goes there.
+async function goToStripe(kind: "checkout" | "portal") {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`/api/billing/${kind}`, { method: "POST", headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+  const out = await res.json().catch(() => ({}));
+  if (res.ok && out.url) { window.location.href = out.url; return; }
+  alert(out.error || "Something went wrong. Try again.");
+}
+
+function SubscribeButton({ label = `Subscribe — ${PRICE_LABEL}`, big = false }: { label?: string; big?: boolean }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button disabled={busy} onClick={async () => { setBusy(true); await goToStripe("checkout"); setBusy(false); }}
+      style={{ ...btn("primary"), ...(big ? { fontSize: 16, padding: "14px 28px" } : {}) }}>
+      {busy ? "Opening checkout…" : label}
+    </button>
+  );
+}
+
+function BillingBanner({ access, onOpen }: { access: Access; onOpen: () => void }) {
+  if (access.state === "trial") return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "10px 14px", marginBottom: 20, fontSize: 13 }}>
+      <span style={{ color: MUTED }}>🎁 <strong style={{ color: TEXT }}>{access.daysLeft} {access.daysLeft === 1 ? "day" : "days"} left</strong> in your free trial.</span>
+      <button onClick={onOpen} style={{ ...btn("ghost"), padding: "5px 12px", fontSize: 12 }}>See plan</button>
+    </div>
+  );
+  if (access.state === "past_due") return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: "#431407", border: "1px solid #fb923c55", borderRadius: 12, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: "#fed7aa" }}>
+      <span>⚠️ Your last payment didn&apos;t go through. Update your card to keep CotizaFlow running.</span>
+      <button onClick={() => goToStripe("portal")} style={{ ...btn("primary"), padding: "5px 12px", fontSize: 12 }}>Update card</button>
+    </div>
+  );
+  return null;
+}
+
+function BillingTab({ access }: { access: Access }) {
+  const statusText: Record<Access["state"], string> = {
+    owner: "Owner account — always free",
+    open: "Free access",
+    active: access.status === "trialing" ? "CotizaFlow Pro — trial, card on file" : "CotizaFlow Pro — active",
+    trial: `Free trial — ${access.daysLeft} ${access.daysLeft === 1 ? "day" : "days"} left`,
+    past_due: "Payment failed — please update your card",
+    locked: "Trial ended",
+  };
+  return (
+    <div style={{ maxWidth: 560 }}>
+      <Section title="Your Plan">
+        <div style={{ fontSize: 20, fontWeight: 800, color: TEXT, marginBottom: 6 }}>{statusText[access.state]}</div>
+        {access.periodEnd && access.state !== "owner" && (
+          <div style={{ fontSize: 13, color: MUTED, marginBottom: 6 }}>
+            {access.status === "canceled" ? "Ended" : access.status === "trialing" ? "First charge on" : "Renews on"} {formatDate(access.periodEnd)}
+          </div>
+        )}
+        {access.state !== "owner" && (
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+            {(access.state === "trial" || access.state === "locked") && <SubscribeButton />}
+            {access.hasCustomer && <button onClick={() => goToStripe("portal")} style={btn("secondary")}>Manage billing & receipts</button>}
+          </div>
+        )}
+      </Section>
+      <Section title="CotizaFlow Pro">
+        <div style={{ fontSize: 28, fontWeight: 900, color: TEXT }}>{PRICE_LABEL.split("/")[0]}<span style={{ fontSize: 14, color: MUTED, fontWeight: 500 }}> / month</span></div>
+        {["Unlimited invoices & estimates", "PDF, print & email to clients", "Your logo, colors & wording", "Reports & mark-paid tracking", "Cancel anytime"].map(f => (
+          <div key={f} style={{ fontSize: 14, color: MUTED, marginTop: 8 }}><span style={{ color: ACCENT, marginRight: 8 }}>→</span>{f}</div>
+        ))}
+        {access.state === "trial" && <div style={{ fontSize: 12, color: MUTED, marginTop: 14 }}>Subscribe now and you won&apos;t be charged until your free trial ends.</div>}
+      </Section>
+    </div>
+  );
+}
+
+function Paywall({ email }: { email: string }) {
+  return (
+    <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "'Segoe UI', sans-serif", color: TEXT }}>
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 36, maxWidth: 440, width: "100%", textAlign: "center" }}>
+        <Image src="/logo.png" alt="CotizaFlow" width={64} height={64} style={{ borderRadius: 12, objectFit: "contain", display: "block", margin: "0 auto 14px" }} />
+        <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>Your free trial has ended</div>
+        <div style={{ fontSize: 14, color: MUTED, lineHeight: 1.6, marginBottom: 24 }}>
+          Subscribe to CotizaFlow Pro for {PRICE_LABEL} to keep sending estimates and invoices. Everything you made is saved and waiting.
+        </div>
+        <SubscribeButton big />
+        <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 20, fontSize: 13 }}>
+          <button onClick={() => goToStripe("portal")} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontFamily: "inherit" }}>Manage billing</button>
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontFamily: "inherit" }}>Sign out ({email})</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type Tab = "documents" | "customers" | "reports" | "billing" | "admin";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("documents");
@@ -1107,23 +1227,58 @@ export default function App() {
   const [editingInvoice, setEditingInvoice] = useState<any>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const [profile, setProfile] = useState<any>(null);
+  const [billingNote, setBillingNote] = useState("");
+  const [billing, setBilling] = useState<any>(null);
 
   useEffect(() => { checkAuth(); }, []);
+
+  const loadProfile = async (userId: string) => {
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    return data;
+  };
+
+  const loadBilling = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/billing/status', { headers: { Authorization: `Bearer ${session?.access_token || ""}` } });
+      return await res.json();
+    } catch { return { error: "unavailable" }; }
+  };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { window.location.href = '/login'; return; }
-    const { data: profile } = await supabase.from('profiles').select('approved').eq('id', user.id).single()
-    if (!profile?.approved) { await supabase.auth.signOut(); window.location.href = '/login'; return; }
+    const prof = await loadProfile(user.id);
+    if (!prof?.approved) { await supabase.auth.signOut(); window.location.href = '/login'; return; }
     setUserEmail(user.email || "");
+    setProfile(prof);
+    if (user.email !== OWNER_EMAIL) setBilling(await loadBilling());
     setAuthChecked(true);
+
+    // Coming back from Stripe checkout: confirm the subscription with Stripe.
+    const back = new URLSearchParams(window.location.search).get("billing");
+    if (back) {
+      window.history.replaceState(null, "", "/dashboard");
+      if (back === "canceled") { setBillingNote("Checkout canceled. You weren't charged."); return; }
+      setBillingNote("Thanks! Finishing your subscription…");
+      for (let i = 0; i < 6; i++) {
+        const b = await loadBilling();
+        if (b?.status === "active" || b?.status === "trialing") { setBilling(b); setBillingNote("🎉 You're subscribed to CotizaFlow Pro. Thank you!"); return; }
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      setBillingNote("Payment received. Your plan will update in a minute — refresh if it doesn't.");
+    }
   }
 
   const isAdmin = userEmail === OWNER_EMAIL;
+  const access = getAccess(profile, isAdmin, billing);
 
   if (!authChecked) return (
     <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: MUTED, fontFamily: "sans-serif" }}>Loading...</div>
   );
+
+  if (access.state === "locked") return <Paywall email={userEmail} />;
 
   if (editingEstimate) return (
     <EstimateEditor estimate={editingEstimate} onSave={() => { setEditingEstimate(null); setTab("documents"); }} onCancel={() => setEditingEstimate(null)} />
@@ -1154,6 +1309,13 @@ export default function App() {
 
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 16px 48px" }}>
         <InstallTip />
+        {billingNote && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, background: PRIMARY, border: `1px solid ${BORDER}`, borderRadius: 12, padding: "10px 14px", marginBottom: 20, fontSize: 13, color: TEXT }}>
+            <span>{billingNote}</span>
+            <button onClick={() => setBillingNote("")} aria-label="Close" style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", fontSize: 18, padding: 0 }}>×</button>
+          </div>
+        )}
+        <BillingBanner access={access} onOpen={() => setTab("billing")} />
 
         {/* Create bar: green + then document types, like InvoiceHome */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
@@ -1172,6 +1334,7 @@ export default function App() {
             { key: "documents", label: "📄 My Documents" },
             { key: "customers", label: "👥 My Customers" },
             { key: "reports",   label: "📊 My Reports" },
+            ...(isAdmin ? [] : [{ key: "billing", label: "💳 Billing" }]),
             ...(isAdmin ? [{ key: "admin", label: "🛡️ Admin" }] : []),
           ] as { key: Tab; label: string }[]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
@@ -1186,6 +1349,7 @@ export default function App() {
         {tab === "documents" && <DocumentsTab onEditEstimate={setEditingEstimate} onEditInvoice={setEditingInvoice} />}
         {tab === "customers" && <ClientsTab />}
         {tab === "reports" && <ReportsTab />}
+        {tab === "billing" && <BillingTab access={access} />}
         {tab === "admin" && isAdmin && <AdminTab />}
       </div>
     </div>
