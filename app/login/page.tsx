@@ -54,8 +54,13 @@ export default function Login() {
   const ACCENT = "#f5a623"
 
   return (
-    <div style={{ background: BG, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', sans-serif" }}>
-      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 40, width: "100%", maxWidth: 420 }}>
+    <div style={{ background: BG, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: "24px 16px", fontFamily: "'Segoe UI', sans-serif" }}>
+      {/* Switch between the public homepage and the app */}
+      <div style={{ display: "flex", background: CARD, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 4 }}>
+        <a href="/" style={{ padding: "8px 18px", fontSize: 13, fontWeight: 600, color: MUTED, textDecoration: "none", borderRadius: 7 }}>🏠 Home</a>
+        <span style={{ padding: "8px 18px", fontSize: 13, fontWeight: 700, color: "#000", background: ACCENT, borderRadius: 7 }}>Sign In</span>
+      </div>
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 40, width: "100%", maxWidth: 420, boxSizing: "border-box" }}>
         
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <Image src="/logo.png" alt="Gumers Landscaping" width={64} height={64} style={{ borderRadius: 12, objectFit: "contain", marginBottom: 12 }} />

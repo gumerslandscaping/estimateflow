@@ -12,6 +12,12 @@ export default function Landing() {
   const [error, setError] = useState('')
   const [scrolled, setScrolled] = useState(false)
   const [count, setCount] = useState(0)
+  const [loggedIn, setLoggedIn] = useState(false)
+
+  // Signed-in visitors get an "Open App" link instead of "Sign In".
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setLoggedIn(!!data.session))
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50)
@@ -80,7 +86,9 @@ export default function Landing() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <a href="/login" style={{ color: MUTED, fontSize: 14, textDecoration: "none", fontWeight: 500 }}>Sign In</a>
+          {loggedIn
+            ? <a href="/dashboard" style={{ color: TEXT, fontSize: 14, textDecoration: "none", fontWeight: 700 }}>Open App →</a>
+            : <a href="/login" style={{ color: MUTED, fontSize: 14, textDecoration: "none", fontWeight: 500 }}>Sign In</a>}
           <a href="#signup" style={{
             background: `linear-gradient(135deg, ${GOLD}, #ffd166)`,
             color: "#000", padding: "9px 22px", borderRadius: 8,
@@ -161,19 +169,20 @@ export default function Landing() {
                 Hi, I&apos;m <span style={{ color: GOLD }}>Elvis.</span>
               </h2>
               <p style={{ fontSize: 16, color: MUTED, lineHeight: 1.8, marginBottom: 16 }}>
-                I run <strong style={{ color: TEXT }}>Gumers Landscaping</strong> in Chicago. For a long time, every estimate I sent was a text message, a photo of a napkin, or a Word doc that took an hour to make. Invoicing was even worse: chasing payments and trying to remember who had paid and who hadn&apos;t.
+                I&apos;m the owner of <strong style={{ color: TEXT }}>Gumers Landscaping</strong> in Chicago. Like many contractors, I was writing estimates by hand, building invoices one at a time, and spending too much time keeping track of who had paid.
               </p>
               <p style={{ fontSize: 16, color: MUTED, lineHeight: 1.8, marginBottom: 16 }}>
-                Clients weren&apos;t taking me seriously, and I was losing bids to guys with nicer-looking paperwork, not better work. So I created my own software to send professional estimates and invoices in minutes, right from my phone, and to keep track of every job and every payment.
+                I knew there had to be a better way, so I built one. CotizaFlow lets me send professional estimates and invoices in minutes, right from my phone, and keeps every job and every payment organized in one place.
               </p>
               <p style={{ fontSize: 16, color: GOLD, lineHeight: 1.8, fontWeight: 600 }}>
-                It changed how I run my business. Now I want to share it with the world.
+                It has changed the way I run my business, and now I&apos;m sharing it with contractors everywhere.
               </p>
+              <a href="/about" style={{ display: "inline-block", marginTop: 16, color: TEXT, fontSize: 14, fontWeight: 700, textDecoration: "none", borderBottom: `1px solid ${GOLD}` }}>More about Elvis Teran →</a>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ background: CARDGREEN, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 28 }}>
                 <Image src="/logo.png" alt="Gumers Landscaping" width={72} height={72} style={{ borderRadius: "50%", objectFit: "contain", border: `2px solid ${GOLD}`, marginBottom: 16 }} />
-                <div style={{ fontSize: 18, fontWeight: 800, color: TEXT }}>Elvis</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: TEXT }}>Elvis Teran</div>
                 <div style={{ fontSize: 13, color: GOLD, fontWeight: 600, marginBottom: 12 }}>Owner, Gumers Landscaping</div>
                 <div style={{ fontSize: 14, color: MUTED, lineHeight: 1.7, fontStyle: "italic" }}>"I built the tool I always wished existed. Now you can use it too."</div>
               </div>
@@ -255,7 +264,7 @@ export default function Landing() {
           <p style={{ color: MUTED, fontSize: 16, marginBottom: 56 }}>14 days free. No credit card. Cancel anytime.</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
             {[
-              { name: "Starter", price: "Free", period: "14 day trial", features: ["Unlimited estimates & invoices", "PDF, print, email & text", "AI price suggestions", "Full dashboard & reports"], cta: "Start Free Trial", accent: false, href: "#signup" },
+              { name: "Starter", price: "Free", period: "14-day trial", features: ["Unlimited estimates & invoices", "PDF, print, email & text", "AI price suggestions", "Full dashboard & reports"], cta: "Start Free Trial", accent: false, href: "#signup" },
               { name: "Pro", price: "$19", period: "per month", features: ["Everything in Starter", "Your logo, colors & wording", "Priority support", "Early access to new features"], cta: "Go Pro", accent: true, href: "/dashboard?tab=billing" },
             ].map((p, i) => (
               <div key={i} style={{
@@ -301,7 +310,7 @@ export default function Landing() {
             <div style={{ background: CARDGREEN, border: `1px solid ${BORDER}`, borderRadius: 16, padding: 40 }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>🏆</div>
               <div style={{ fontWeight: 900, fontSize: 24, color: TEXT, marginBottom: 8 }}>You're In.</div>
-              <div style={{ color: MUTED, fontSize: 15 }}>Your account is pending approval. We'll email you once you're approved — usually within a few hours.</div>
+              <div style={{ color: MUTED, fontSize: 15 }}>Your account is pending approval, which usually takes a few hours. Once it&apos;s approved, sign in to get started.</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 460, margin: "0 auto" }}>
@@ -340,7 +349,10 @@ export default function Landing() {
           <span style={{ fontWeight: 800, color: TEXT }}>CotizaFlow</span>
           <span style={{ color: MUTED, fontSize: 13 }}>by Gumers Landscaping</span>
         </div>
-        <div style={{ color: MUTED, fontSize: 13 }}>© 2026 CotizaFlow. All rights reserved.</div>
+        <div style={{ color: MUTED, fontSize: 13, display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <a href="/about" style={{ color: MUTED, textDecoration: "none" }}>About the Founder</a>
+          <span>© 2026 CotizaFlow. All rights reserved.</span>
+        </div>
       </footer>
 
     </div>
