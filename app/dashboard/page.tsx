@@ -1188,6 +1188,17 @@ function BillingTab({ access }: { access: Access }) {
             {access.hasCustomer && <button onClick={() => goToStripe("portal")} style={btn("secondary")}>Manage billing & receipts</button>}
           </div>
         )}
+        {access.state === "owner" && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 13, color: MUTED, marginBottom: 12, lineHeight: 1.6 }}>
+              This is what landscapers see. Use the button to open the real Stripe checkout page. While Stripe is in test mode, use card 4242 4242 4242 4242 (any future date, any CVC). No real money moves.
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <SubscribeButton label="Preview the checkout" />
+              <button onClick={() => goToStripe("portal")} style={btn("secondary")}>Preview Manage billing</button>
+            </div>
+          </div>
+        )}
       </Section>
       <Section title="CotizaFlow Pro">
         <div style={{ fontSize: 28, fontWeight: 900, color: TEXT }}>{PRICE_LABEL.split("/")[0]}<span style={{ fontSize: 14, color: MUTED, fontWeight: 500 }}> / month</span></div>
@@ -1334,7 +1345,7 @@ export default function App() {
             { key: "documents", label: "📄 My Documents" },
             { key: "customers", label: "👥 My Customers" },
             { key: "reports",   label: "📊 My Reports" },
-            ...(isAdmin ? [] : [{ key: "billing", label: "💳 Billing" }]),
+            { key: "billing", label: "💳 Billing" },
             ...(isAdmin ? [{ key: "admin", label: "🛡️ Admin" }] : []),
           ] as { key: Tab; label: string }[]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} style={{
