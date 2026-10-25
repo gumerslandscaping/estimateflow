@@ -1320,7 +1320,14 @@ export default function App() {
             <div style={{ fontSize: 11, color: ACCENT, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>{userEmail}</div>
           </div>
         </div>
-        <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ ...btn("ghost"), fontSize: 12, whiteSpace: "nowrap" }}>Sign Out</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Switch between the public homepage and the app */}
+          <div style={{ display: "flex", background: BG, border: `1px solid ${BORDER}`, borderRadius: 8, padding: 3 }}>
+            <a href="/" style={{ padding: "6px 12px", fontSize: 12, fontWeight: 600, color: MUTED, textDecoration: "none", borderRadius: 6, whiteSpace: "nowrap" }}>🏠 Home</a>
+            <span style={{ padding: "6px 12px", fontSize: 12, fontWeight: 700, color: "#000", background: ACCENT, borderRadius: 6, whiteSpace: "nowrap" }}>App</span>
+          </div>
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} style={{ ...btn("ghost"), fontSize: 12, whiteSpace: "nowrap" }}>Sign Out</button>
+        </div>
       </div>
 
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 16px 48px" }}>
