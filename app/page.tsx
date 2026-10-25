@@ -113,10 +113,10 @@ export default function Landing() {
           </h1>
 
           <p style={{ fontSize: 20, color: MUTED, maxWidth: 580, margin: "0 auto 16px", lineHeight: 1.7 }}>
-            Stop losing jobs to competitors with fancier paperwork. Send professional estimates in minutes — from your phone, anywhere, anytime.
+            Estimating and invoicing software built for landscapers and the trades. Send professional estimates and invoices in minutes, from your phone, anywhere, anytime.
           </p>
           <p style={{ fontSize: 15, color: MUTED, maxWidth: 500, margin: "0 auto 48px", lineHeight: 1.7 }}>
-            AI-powered pricing. Instant email & text delivery. Built by <span style={{ color: GOLD, fontWeight: 600 }}>Elvis @ Gumers Landscaping</span> — for people who work hard and want to look the part.
+            AI-powered pricing. PDF invoices by email or text. Know who&apos;s paid and who hasn&apos;t. Built by <span style={{ color: GOLD, fontWeight: 600 }}>Elvis @ Gumers Landscaping</span> — for people who work hard and want to look the part.
           </p>
 
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginBottom: 64 }}>
@@ -156,20 +156,18 @@ export default function Landing() {
         <div style={{ maxWidth: 800, margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
             <div>
-              <div style={{ fontSize: 11, color: GOLD, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>The Origin Story</div>
+              <div style={{ fontSize: 11, color: GOLD, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>Meet the Founder</div>
               <h2 style={{ fontSize: 42, fontWeight: 900, lineHeight: 1.15, marginBottom: 24, letterSpacing: "-0.03em", color: TEXT }}>
-                I Was Tired of<br />
-                <span style={{ color: GOLD }}>Losing Jobs</span><br />
-                on Paper.
+                Hi, I&apos;m <span style={{ color: GOLD }}>Elvis.</span>
               </h2>
               <p style={{ fontSize: 16, color: MUTED, lineHeight: 1.8, marginBottom: 16 }}>
-                My name is Elvis. I run <strong style={{ color: TEXT }}>Gumers Landscaping</strong> in Chicago. Every estimate I sent was a text message, a photo of a napkin, or a Word doc that took an hour to make.
+                I run <strong style={{ color: TEXT }}>Gumers Landscaping</strong> in Chicago. For a long time, every estimate I sent was a text message, a photo of a napkin, or a Word doc that took an hour to make. Invoicing was even worse: chasing payments and trying to remember who had paid and who hadn&apos;t.
               </p>
               <p style={{ fontSize: 16, color: MUTED, lineHeight: 1.8, marginBottom: 16 }}>
-                Clients weren't taking me seriously. I was losing bids to guys with nicer-looking paperwork — not better work.
+                Clients weren&apos;t taking me seriously, and I was losing bids to guys with nicer-looking paperwork, not better work. So I created my own software to send professional estimates and invoices in minutes, right from my phone, and to keep track of every job and every payment.
               </p>
               <p style={{ fontSize: 16, color: GOLD, lineHeight: 1.8, fontWeight: 600 }}>
-                So I built CotizaFlow. Now I send professional estimates in under 3 minutes — and I'm sharing it with you.
+                It changed how I run my business. Now I want to share it with the world.
               </p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -198,16 +196,16 @@ export default function Landing() {
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 64 }}>
             <div style={{ fontSize: 11, color: GOLD, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 16 }}>The Weapon</div>
-            <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.03em", marginBottom: 16, color: TEXT }}>Everything You Need<br />to <span style={{ color: GOLD }}>Win More Jobs</span></h2>
+            <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.03em", marginBottom: 16, color: TEXT }}>Everything You Need<br />to <span style={{ color: GOLD }}>Win Jobs & Get Paid</span></h2>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2 }}>
             {[
               { icon: "⚡", title: "Build Estimates Fast", desc: "Add services, quantities, and rates. Totals auto-calculate. Done in under 3 minutes.", num: "01" },
-              { icon: "📲", title: "Send by Text or Email", desc: "Hit one button. Your client gets a professional estimate on their phone instantly.", num: "02" },
+              { icon: "📲", title: "Send by Text or Email", desc: "Hit one button. Your client gets a professional estimate or invoice on their phone instantly.", num: "02" },
               { icon: "✨", title: "AI Pricing Engine", desc: "Type 'lawn mowing' — AI suggests the right price for your market. No more guessing.", num: "03" },
-              { icon: "📊", title: "Track Every Deal", desc: "Draft, Sent, Accepted, Declined. Know exactly where every job stands.", num: "04" },
-              { icon: "💰", title: "See Your Pipeline", desc: "Total estimate value at a glance. Know what's coming in before it hits your account.", num: "05" },
-              { icon: "🌐", title: "Works Everywhere", desc: "Phone, tablet, laptop. On the job site or at your kitchen table.", num: "06" },
+              { icon: "🧾", title: "Professional Invoices", desc: "Turn an estimate into an invoice in one tap. Your logo, numbered in order, sent as a PDF or printed.", num: "04" },
+              { icon: "💰", title: "Know Who's Paid", desc: "Paid, Unpaid, and Overdue at a glance, with one tap to mark paid. Monthly reports show what's coming in.", num: "05" },
+              { icon: "🌐", title: "Works Everywhere", desc: "Phone, tablet, laptop. Install it on your iPhone like an app, on the job site or at your kitchen table.", num: "06" },
             ].map((f, i) => (
               <div key={i} style={{
                 padding: 32, background: CARDGREEN,
@@ -257,8 +255,8 @@ export default function Landing() {
           <p style={{ color: MUTED, fontSize: 16, marginBottom: 56 }}>14 days free. No credit card. Cancel anytime.</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
             {[
-              { name: "Starter", price: "Free", period: "14 day trial", features: ["Unlimited estimates", "Email & text sending", "AI price suggestions", "Full dashboard"], cta: "Start Free Trial", accent: false },
-              { name: "Pro", price: "$19", period: "per month", features: ["Everything in Starter", "Priority support", "Custom branding", "Early access to new features"], cta: "Go Pro", accent: true },
+              { name: "Starter", price: "Free", period: "14 day trial", features: ["Unlimited estimates & invoices", "PDF, print, email & text", "AI price suggestions", "Full dashboard & reports"], cta: "Start Free Trial", accent: false, href: "#signup" },
+              { name: "Pro", price: "$19", period: "per month", features: ["Everything in Starter", "Your logo, colors & wording", "Priority support", "Early access to new features"], cta: "Go Pro", accent: true, href: "/dashboard?tab=billing" },
             ].map((p, i) => (
               <div key={i} style={{
                 background: p.accent ? `rgba(245,166,35,0.05)` : CARDGREEN,
@@ -275,7 +273,7 @@ export default function Landing() {
                     <span style={{ color: GOLD, fontSize: 16 }}>→</span> {f}
                   </div>
                 ))}
-                <a href="#signup" style={{
+                <a href={p.href} style={{
                   display: "block", marginTop: 32,
                   background: p.accent ? `linear-gradient(135deg, ${GOLD}, #ffd166)` : GREEN,
                   color: p.accent ? "#000" : MUTED,

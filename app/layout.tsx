@@ -13,12 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CotizaFlow - Send Estimates to Clients",
-  description: "Create and send professional estimates and quotes to your clients instantly via email or text.",
-  keywords: "estimates, quotes, landscaping, invoicing, small business",
+  title: "CotizaFlow - Estimating & Invoicing Software for Landscapers",
+  description: "Create and send professional estimates and invoices to your clients in minutes by email or text. Track who's paid. Built by a landscaper in Chicago.",
+  keywords: "estimating software, invoicing software, estimates, invoices, quotes, landscaping, contractors, small business",
   openGraph: {
-    title: "CotizaFlow - Send Estimates to Clients",
-    description: "Create and send professional estimates and quotes to your clients instantly via email or text.",
+    title: "CotizaFlow - Estimating & Invoicing Software for Landscapers",
+    description: "Create and send professional estimates and invoices to your clients in minutes by email or text. Track who's paid. Built by a landscaper in Chicago.",
     url: "https://cotizaflow.com",
     siteName: "CotizaFlow",
     type: "website",
