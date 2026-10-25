@@ -4,6 +4,8 @@
 import { createClient } from '@supabase/supabase-js'
 
 export const TRIAL_DAYS = 14
+// Accounts made before billing launched get their 14 days counted from launch day, not sign-up.
+export const BILLING_LAUNCH = new Date('2026-10-24T00:00:00-05:00').getTime()
 
 // CotizaFlow Pro, $19/month. STRIPE_PRICE_ID in Vercel overrides it (e.g. for live mode).
 export const PRICE_ID = process.env.STRIPE_PRICE_ID || 'price_1UUF8MJ9eAMjXDXTAIGetfty'

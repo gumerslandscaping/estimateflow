@@ -1102,6 +1102,8 @@ function InstallTip() {
 // ---------- Billing: 14-day free trial, then CotizaFlow Pro through Stripe ----------
 
 const TRIAL_DAYS = 14;
+// Accounts made before billing launched get their 14 days counted from launch day, not sign-up.
+const BILLING_LAUNCH = new Date("2026-10-24T00:00:00-05:00").getTime();
 const PRICE_LABEL = "$19/month";
 
 type Access = {
@@ -1117,7 +1119,8 @@ function getAccess(profile: any, isAdmin: boolean, billing: any): Access {
   const status = billing?.status || "";
   const periodEnd = billing?.periodEnd || null;
   const hasCustomer = !!billing?.hasCustomer;
-  const created = profile?.created_at ? new Date(profile.created_at).getTime() : Date.now();
+  const signedUp = profile?.created_at ? new Date(profile.created_at).getTime() : Date.now();
+  const created = Math.max(signedUp, BILLING_LAUNCH);
   const daysLeft = Math.max(0, Math.ceil((created + TRIAL_DAYS * 86400000 - Date.now()) / 86400000));
   const base = { daysLeft, status, periodEnd, hasCustomer };
   if (isAdmin) return { state: "owner", ...base };
