@@ -15,7 +15,8 @@ export async function POST(request: Request) {
     // Reuse the Stripe customer if this user already has one.
     let customerId: string | null = profile?.stripe_customer_id || null
     if (!customerId) {
-      const customer = await stripe('customers', { email: user.email, metadata: { user_id: user.id } })
+      // Idempotency key: a double-tap on Subscribe can't create two Stripe customers.
+      const customer = await stripe('customers', { email: user.email, metadata: { user_id: user.id } }, 'POST', `customer-${user.id}`)
       customerId = customer.id
       await db.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id)
     }
@@ -33,7 +34,11 @@ export async function POST(request: Request) {
       client_reference_id: user.id,
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       allow_promotion_codes: true,
-      subscription_data: { metadata: { user_id: user.id }, ...(keepTrial ? { trial_end: trialEnd } : {}) },
+      subscription_data: {
+        metadata: { user_id: user.id },
+        billing_mode: { type: 'flexible' }, // Stripe's recommended default for new subscriptions
+        ...(keepTrial ? { trial_end: trialEnd } : {}),
+      },
       success_url: `${base}/dashboard?billing=success`,
       cancel_url: `${base}/dashboard?billing=canceled`,
     })

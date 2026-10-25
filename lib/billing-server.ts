@@ -36,15 +36,21 @@ function encode(params: Record<string, any>, prefix = ''): string[] {
   return out
 }
 
-export async function stripe(path: string, params?: Record<string, any>, method: 'GET' | 'POST' = 'POST') {
+// Pinned so a Stripe-side upgrade can't change response shapes under us.
+export const STRIPE_API_VERSION = '2025-06-30.basil'
+
+export async function stripe(path: string, params?: Record<string, any>, method: 'GET' | 'POST' = 'POST', idempotencyKey?: string) {
   const body = params ? encode(params).join('&') : undefined
   const url = `https://api.stripe.com/v1/${path}${method === 'GET' && body ? `?${body}` : ''}`
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Stripe-Version': STRIPE_API_VERSION,
+  }
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
   const res = await fetch(url, {
     method,
-    headers: {
-      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers,
     body: method === 'POST' ? body : undefined,
   })
   const json = await res.json()

@@ -28,22 +28,31 @@ export async function POST(request: Request) {
     if (error) throw error
   }
 
+  // Stripe can deliver events out of order, so always fetch the subscription's latest state
+  // instead of trusting the copy inside the event.
+  const syncSubscription = async (subId: string | null | undefined, fallbackUserId?: string | null) => {
+    if (!subId) return
+    const sub = await stripe(`subscriptions/${subId}`, undefined, 'GET')
+    if (!sub.metadata?.user_id && fallbackUserId) sub.metadata = { ...sub.metadata, user_id: fallbackUserId }
+    await saveSubscription(sub)
+  }
+  const idOf = (v: any): string | null => (typeof v === 'string' ? v : v?.id ?? null)
+
   try {
+    const obj = event.data.object
     switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object
-        if (session.subscription) {
-          const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id
-          const sub = await stripe(`subscriptions/${subId}`, undefined, 'GET')
-          if (!sub.metadata?.user_id && session.client_reference_id) sub.metadata = { ...sub.metadata, user_id: session.client_reference_id }
-          await saveSubscription(sub)
-        }
+      case 'checkout.session.completed':
+        await syncSubscription(idOf(obj.subscription), obj.client_reference_id)
         break
-      }
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
-        await saveSubscription(event.data.object)
+        await syncSubscription(obj.id)
+        break
+      case 'invoice.paid':
+      case 'invoice.payment_failed':
+        // Newer API versions keep the subscription under invoice.parent.subscription_details.
+        await syncSubscription(idOf(obj.parent?.subscription_details?.subscription) || idOf(obj.subscription))
         break
     }
     return NextResponse.json({ received: true })
